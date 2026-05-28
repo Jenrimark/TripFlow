@@ -1,6 +1,11 @@
 # OS
 .DS_Store
 
+# Secrets（保留 .env.example）
+.env
+.env.local
+.env.*.local
+
 # Logs
 logs
 *.log
@@ -52,6 +57,7 @@ tripflow-api/build/
 
 # --- tripflow-web (Node / Vite) ---
 node_modules
+docs/
 dist
 dist-ssr
 coverage

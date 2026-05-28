@@ -9,19 +9,42 @@
 | `tripflow-web` | Vue 3 + Vite + Element Plus 前端 |
 | `tripflow-api` | Spring Boot 3 + MyBatis-Plus 后端 |
 
-## 本地启动
+## 本地开发环境配置
 
-### 1. 初始化数据库
+### 1. 配置环境变量
 
-在 MySQL 中执行：
+复制环境变量模板并填写配置：
 
 ```bash
-mysql -u root -p < tripflow-api/src/main/resources/sql/init_tripflow.sql
+cp .env.example .env
 ```
 
-按需修改 `tripflow-api/src/main/resources/application.properties` 中的数据库账号密码。
+编辑 `.env` 文件，配置 ECS MySQL 连接信息：
 
-### 2. 启动后端
+```bash
+# MySQL（阿里云 ECS）
+MYSQL_HOST=你的ECS公网IP
+MYSQL_PORT=3306
+MYSQL_DATABASE=tripflow
+MYSQL_USER=root
+MYSQL_PASSWORD=你的MySQL密码
+
+# 后端
+API_SERVER_PORT=8080
+
+# 前端
+VITE_API_PROXY_TARGET=http://localhost:8080
+```
+
+### 2. 初始化数据库
+
+确保 ECS 安全组已开放 3306 端口，然后创建数据库：
+
+```bash
+mysql -h 你的ECS公网IP -u root -p -e "CREATE DATABASE tripflow DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+### 3. 启动后端
 
 ```bash
 cd tripflow-api
@@ -30,7 +53,7 @@ cd tripflow-api
 
 默认端口：`8080`
 
-### 3. 启动前端
+### 4. 启动前端
 
 ```bash
 cd tripflow-web
@@ -39,6 +62,60 @@ npm run dev
 ```
 
 默认端口：`5173`，API 通过 Vite 代理到 `/api`。
+
+---
+
+## 阿里云 ECS MySQL 配置
+
+如果还没有安装 MySQL，按以下步骤操作：
+
+### 安装 MySQL
+
+```bash
+sudo apt update
+sudo apt install mysql-server -y
+sudo systemctl start mysql
+sudo systemctl enable mysql
+```
+
+### 设置 root 密码
+
+```bash
+sudo mysql
+```
+
+```sql
+ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '你的密码';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+### 允许远程连接
+
+编辑 MySQL 配置：
+
+```bash
+sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
+```
+
+找到 `bind-address = 127.0.0.1` 改为：
+
+```
+bind-address = 0.0.0.0
+```
+
+重启 MySQL：
+
+```bash
+sudo systemctl restart mysql
+```
+
+### 开放安全组端口
+
+阿里云 ECS 控制台 → 安全组 → 入方向规则：
+- 协议: TCP
+- 端口: 3306
+- 授权对象: 你的本地 IP 或 `0.0.0.0/0`
 
 ## 当前能力（骨架）
 
