@@ -27,6 +27,30 @@ const router = createRouter({
       component: () => import('@/views/KanbanView.vue'),
       meta: { title: '流程看板' },
     },
+    {
+      path: '/reimbursement',
+      name: 'reimbursement-list',
+      component: () => import('@/views/reimbursement/ReimbursementListView.vue'),
+      meta: { title: '报销单列表' },
+    },
+    {
+      path: '/reimbursement/new',
+      name: 'reimbursement-new',
+      component: () => import('@/views/reimbursement/ReimbursementDetailView.vue'),
+      meta: { title: '新建报销单' },
+    },
+    {
+      path: '/reimbursement/:id',
+      name: 'reimbursement-detail',
+      component: () => import('@/views/reimbursement/ReimbursementDetailView.vue'),
+      meta: { title: '报销单详情' },
+    },
+    {
+      path: '/reimbursement/:id/edit',
+      name: 'reimbursement-edit',
+      component: () => import('@/views/reimbursement/ReimbursementDetailView.vue'),
+      meta: { title: '编辑报销单' },
+    },
   ],
 })
 
