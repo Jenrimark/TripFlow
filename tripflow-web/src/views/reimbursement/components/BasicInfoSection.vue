@@ -37,7 +37,7 @@
             @change="handleReimburserChange"
           >
             <el-option
-              v-for="person in personnel"
+              v-for="person in reimbursers"
               :key="person.reimburserId"
               :label="`${person.reimburserName}(${person.reimburserNo})`"
               :value="person.reimburserId"
@@ -81,21 +81,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { ArrowDown } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
 import type { ReimbursementBasicInfo } from '@/types/reimbursement'
-
-interface BusinessTypeNode {
-  businessTypeId: string
-  businessTypeNo: string
-  businessTypeName: string
-  thereSubordinateNode?: string
-  children?: BusinessTypeNode[]
-}
+import type { BusinessType } from '@/api/master'
+import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
 
 const store = useReimbursementStore()
+const { companies, reimbursers, businessTypes, loadMasterData } = useReimbursementMasterData()
 const formRef = ref<FormInstance>()
 const expanded = ref(true)
 
@@ -124,51 +119,18 @@ const rules: FormRules = {
   businessTypeId: [{ required: true, message: '请选择业务类型', trigger: 'change' }],
 }
 
-const personnel = ref([
-  {
-    reimburserId: '13AB3A3F72409002',
-    reimburserNo: '74541',
-    reimburserName: '徐年年',
-    departmentId: '13AB8D7B52A9B002',
-    departmentName: '客户成功事业部',
-    departmentNo: '072001',
-  },
-  {
-    reimburserId: '13AB498CC6409002',
-    reimburserNo: '74008',
-    reimburserName: '郑雨雪',
-    departmentId: '13BFD31C6029A002',
-    departmentName: '企业消费事业部',
-    departmentNo: '072002',
-  },
-])
-
-const companies = ref([
-  { reimCompanyId: '1C54557F1782E000', reimCompanyNo: '0407', reimCompanyName: '胜意科技北京分公司' },
-  { reimCompanyId: '19218A262C976000', reimCompanyNo: '0408', reimCompanyName: '胜意科技上海分公司' },
-])
-
-const businessTypes = ref<BusinessTypeNode[]>([
-  {
-    businessTypeId: '18F0916A8C2C4000',
-    businessTypeNo: '1001001',
-    businessTypeName: '员工差旅活动',
-    thereSubordinateNode: '1',
-  },
-])
-
 function toggleExpanded() {
   expanded.value = !expanded.value
 }
 
 function handleReimburserChange(value: string) {
-  const person = personnel.value.find((p) => p.reimburserId === value)
+  const person = reimbursers.value.find((p) => p.reimburserId === value)
   if (person) {
     formData.reimburserName = person.reimburserName
     formData.reimburserNo = person.reimburserNo
-    formData.departmentId = person.departmentId
-    formData.departmentName = person.departmentName
-    formData.departmentNo = person.departmentNo
+    formData.departmentId = person.departmentId ?? ''
+    formData.departmentName = person.departmentName ?? ''
+    formData.departmentNo = person.departmentNo ?? ''
   }
 }
 
@@ -181,7 +143,7 @@ function handleCompanyChange(value: string) {
 }
 
 function handleBusinessTypeChange(value: string) {
-  const findType = (types: BusinessTypeNode[]): BusinessTypeNode | null => {
+  const findType = (types: BusinessType[]): BusinessType | null => {
     for (const type of types) {
       if (type.businessTypeId === value) return type
       if (type.children) {
@@ -217,6 +179,10 @@ watch(
   },
   { deep: true },
 )
+
+onMounted(() => {
+  loadMasterData()
+})
 
 defineExpose({
   validate: () => formRef.value?.validate(),

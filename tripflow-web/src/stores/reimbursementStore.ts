@@ -15,6 +15,7 @@ import {
   calculateEvenAllocation,
   calculateDaysBetween,
 } from '@/utils/reimbursementUtils'
+import { reimbursementApi } from '@/api/reimbursement'
 
 export const useReimbursementStore = defineStore('reimbursement', () => {
   const reimbursementList = ref<Reimbursement[]>([])
@@ -69,7 +70,13 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
   async function fetchReimbursements() {
     loading.value = true
     try {
-      // TODO: 调用API获取列表
+      const { data } = await reimbursementApi.getList(
+        query.value,
+        currentPage.value,
+        pageSize.value,
+      )
+      reimbursementList.value = data.list
+      total.value = data.total
     } finally {
       loading.value = false
     }
@@ -78,11 +85,51 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
   async function fetchReimbursementDetail(id: string) {
     loading.value = true
     try {
-      void id
-      // TODO: 调用API获取详情
+      const { data } = await reimbursementApi.getDetail(id)
+      currentReimbursement.value = data
     } finally {
       loading.value = false
     }
+  }
+
+  function syncTotalsToCurrent() {
+    if (!currentReimbursement.value) return
+    currentReimbursement.value.totalAllowanceAmount = totalAllowanceAmount.value
+    currentReimbursement.value.totalMealAmount = totalMealAmount.value
+    currentReimbursement.value.totalTransportAmount = totalTransportAmount.value
+    currentReimbursement.value.totalCommunicationAmount = totalCommunicationAmount.value
+  }
+
+  function getSnapshot(): Reimbursement {
+    if (!currentReimbursement.value) {
+      throw new Error('报销单不存在')
+    }
+    syncTotalsToCurrent()
+    return JSON.parse(JSON.stringify(currentReimbursement.value)) as Reimbursement
+  }
+
+  async function saveReimbursement(): Promise<Reimbursement> {
+    const payload = getSnapshot()
+    if (payload.id) {
+      const { data } = await reimbursementApi.update(payload.id, payload)
+      currentReimbursement.value = data
+      return data
+    }
+    const { data } = await reimbursementApi.create(payload)
+    currentReimbursement.value = data
+    return data
+  }
+
+  async function submitReimbursement() {
+    const saved = await saveReimbursement()
+    await reimbursementApi.submit(saved.id)
+    if (currentReimbursement.value) {
+      currentReimbursement.value.status = DocumentStatus.COMPLETED
+    }
+  }
+
+  async function deleteReimbursement(id: string) {
+    await reimbursementApi.delete(id)
   }
 
   function createNewReimbursement() {
@@ -327,5 +374,8 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     deleteCostAllocation,
     evenAllocation,
     validateBeforeSubmit,
+    saveReimbursement,
+    submitReimbursement,
+    deleteReimbursement,
   }
 })

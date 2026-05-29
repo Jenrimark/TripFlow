@@ -76,23 +76,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
 import type { CostAllocation } from '@/types/reimbursement'
 import { formatAmount } from '@/utils/reimbursementUtils'
+import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
 
 const store = useReimbursementStore()
-
-const companies = ref([
-  { reimCompanyId: '1C54557F1782E000', reimCompanyNo: '0407', reimCompanyName: '胜意科技北京分公司' },
-  { reimCompanyId: '19218A262C976000', reimCompanyNo: '0408', reimCompanyName: '胜意科技上海分公司' },
-])
-
-const projects = ref([
-  { projectId: '12BC248B25083001', projectNo: 'nonProjectRelated', projectName: '非项目类费用归集' },
-  { projectId: '1C811ABF96195000', projectNo: 'centralChina', projectName: '华中客户定制化项目' },
-])
+const { companies, projects, loadMasterData } = useReimbursementMasterData()
 
 const allocations = computed(() => {
   if (!store.currentReimbursement) return []
@@ -156,6 +148,10 @@ function handleDelete(row: CostAllocation, index: number) {
     ElMessage.success('删除成功')
   })
 }
+
+onMounted(() => {
+  loadMasterData()
+})
 </script>
 
 <style scoped>

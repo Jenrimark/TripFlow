@@ -23,7 +23,7 @@
           @change="handleReimburserChange"
         >
           <el-option
-            v-for="person in personnel"
+            v-for="person in reimbursers"
             :key="person.reimburserId"
             :label="`${person.reimburserName}(${person.reimburserNo})`"
             :value="person.reimburserId"
@@ -103,9 +103,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { TravelRecord } from '@/types/reimbursement'
+import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
+
+const { reimbursers, cities, loadMasterData } = useReimbursementMasterData()
 
 const props = defineProps<{
   visible: boolean
@@ -142,19 +145,6 @@ const rules: FormRules = {
   description: [{ required: true, message: '请输入行程说明', trigger: 'blur' }],
 }
 
-const personnel = ref([
-  { reimburserId: '13AB3A3F72409002', reimburserNo: '74541', reimburserName: '徐年年' },
-  { reimburserId: '13AB498CC6409002', reimburserNo: '74008', reimburserName: '郑雨雪' },
-])
-
-const cities = ref([
-  { cityNo: '10119', cityName: '北京' },
-  { cityNo: '10621', cityName: '上海' },
-  { cityNo: '10458', cityName: '武汉' },
-  { cityNo: '10216', cityName: '杭州' },
-  { cityNo: '10455', cityName: '荆州' },
-])
-
 const dialogTitle = computed(() => {
   if (props.mode === 'edit') return '编辑行程'
   if (props.mode === 'copy') return '复制行程'
@@ -171,7 +161,7 @@ function disableDateBeforeDeparture(date: Date) {
 }
 
 function handleReimburserChange(value: string) {
-  const person = personnel.value.find((p) => p.reimburserId === value)
+  const person = reimbursers.value.find((p) => p.reimburserId === value)
   if (person) {
     formData.reimburserName = person.reimburserName
     formData.reimburserNo = person.reimburserNo
@@ -235,4 +225,8 @@ watch(
   },
   { immediate: true },
 )
+
+onMounted(() => {
+  loadMasterData()
+})
 </script>

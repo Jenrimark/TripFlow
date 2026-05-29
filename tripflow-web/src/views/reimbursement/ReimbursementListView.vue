@@ -58,7 +58,7 @@
             placeholder="请输入姓名或工号"
           >
             <el-option
-              v-for="person in personnel"
+              v-for="person in reimbursers"
               :key="person.reimburserId"
               :label="`${person.reimburserName}(${person.reimburserNo})`"
               :value="person.reimburserId"
@@ -167,9 +167,12 @@ import { Plus, ArrowDown } from '@element-plus/icons-vue'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
 import { DocumentStatus, type Reimbursement } from '@/types/reimbursement'
 import { formatAmount } from '@/utils/reimbursementUtils'
+import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
 
 const router = useRouter()
 const store = useReimbursementStore()
+const { companies, departments, reimbursers, businessTypes, loadMasterData } =
+  useReimbursementMasterData()
 
 const queryForm = ref({
   documentNo: '',
@@ -180,38 +183,6 @@ const queryForm = ref({
   reimburserIds: [] as string[],
   businessTypeIds: [] as string[],
 })
-
-const companies = ref([
-  { reimCompanyId: '1C54557F1782E000', reimCompanyNo: '0407', reimCompanyName: '胜意科技北京分公司' },
-  { reimCompanyId: '19218A262C976000', reimCompanyNo: '0408', reimCompanyName: '胜意科技上海分公司' },
-])
-
-const departments = ref([
-  {
-    reimDepartmentId: '13AB8D7B52A9B002',
-    reimDepartmentNo: '072001',
-    reimDepartmentName: '客户成功事业部',
-  },
-  {
-    reimDepartmentId: '13BFD31C6029A002',
-    reimDepartmentNo: '072002',
-    reimDepartmentName: '企业消费事业部',
-  },
-])
-
-const personnel = ref([
-  { reimburserId: '13AB3A3F72409002', reimburserNo: '74541', reimburserName: '徐年年' },
-  { reimburserId: '13AB498CC6409002', reimburserNo: '74008', reimburserName: '郑雨雪' },
-])
-
-const businessTypes = ref([
-  {
-    businessTypeId: '18F0916A8C2C4000',
-    businessTypeNo: '1001001',
-    businessTypeName: '员工差旅活动',
-    thereSubordinateNode: '1',
-  },
-])
 
 type TagType = 'success' | 'info' | 'warning' | 'danger' | 'primary'
 
@@ -297,8 +268,8 @@ function handleDelete(row: Reimbursement) {
     cancelButtonText: '取消',
   }).then(async () => {
     try {
-      void row
-      store.fetchReimbursements()
+      await store.deleteReimbursement(row.id)
+      await store.fetchReimbursements()
       ElMessage.success('删除成功')
     } catch {
       ElMessage.error('删除失败')
@@ -314,7 +285,8 @@ function handleCurrentChange() {
   store.fetchReimbursements()
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await loadMasterData()
   store.fetchReimbursements()
 })
 </script>

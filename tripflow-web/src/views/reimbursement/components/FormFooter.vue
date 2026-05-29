@@ -32,8 +32,9 @@ async function handleSubmit() {
 
   submitting.value = true
   try {
+    await store.submitReimbursement()
     ElMessage.success('提交成功')
-    router.back()
+    router.push('/reimbursement')
   } catch {
     ElMessage.error('提交失败')
   } finally {

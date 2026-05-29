@@ -1,48 +1,38 @@
+import request from './request'
 import type {
   Reimbursement,
   ReimbursementQuery,
   ReimbursementListResult,
 } from '@/types/reimbursement'
-import axios from 'axios'
-
-const API_BASE = '/api/reimbursement'
 
 export const reimbursementApi = {
-  async getList(
-    query: ReimbursementQuery,
-    page: number,
-    pageSize: number,
-  ): Promise<ReimbursementListResult> {
-    const response = await axios.get<ReimbursementListResult>(API_BASE, {
+  getList(query: ReimbursementQuery, page: number, pageSize: number) {
+    return request.get<ReimbursementListResult>('/reimbursement', {
       params: { ...query, page, pageSize },
     })
-    return response.data
   },
 
-  async getDetail(id: string): Promise<Reimbursement> {
-    const response = await axios.get<Reimbursement>(`${API_BASE}/${id}`)
-    return response.data
+  getDetail(id: string) {
+    return request.get<Reimbursement>(`/reimbursement/${id}`)
   },
 
-  async create(data: Partial<Reimbursement>): Promise<Reimbursement> {
-    const response = await axios.post<Reimbursement>(API_BASE, data)
-    return response.data
+  create(data: Partial<Reimbursement>) {
+    return request.post<Reimbursement>('/reimbursement', data)
   },
 
-  async update(id: string, data: Partial<Reimbursement>): Promise<Reimbursement> {
-    const response = await axios.put<Reimbursement>(`${API_BASE}/${id}`, data)
-    return response.data
+  update(id: string, data: Partial<Reimbursement>) {
+    return request.put<Reimbursement>(`/reimbursement/${id}`, data)
   },
 
-  async delete(id: string): Promise<void> {
-    await axios.delete(`${API_BASE}/${id}`)
+  delete(id: string) {
+    return request.delete(`/reimbursement/${id}`)
   },
 
-  async submit(id: string): Promise<void> {
-    await axios.post(`${API_BASE}/${id}/submit`)
+  submit(id: string) {
+    return request.post(`/reimbursement/${id}/submit`)
   },
 
-  async void(id: string): Promise<void> {
-    await axios.post(`${API_BASE}/${id}/void`)
+  void(id: string) {
+    return request.post(`/reimbursement/${id}/void`)
   },
 }
