@@ -1,48 +1,48 @@
 # TripFlow
 
-差旅报销与通用流程管理系统：报销填报、审批中心、流程看板。
+差旅报销与流程管理系统：报销单填报、补助计算、费用分摊、审批中心、流程看板。
+
+设计依据见 [`docs/概要设计.md`](docs/概要设计.md)，页面原型见 [`docs/media/`](docs/media/)。
 
 ## 项目结构
 
 | 目录 | 说明 |
 |------|------|
-| `tripflow-web` | Vue 3 + Vite + Element Plus 前端 |
+| `tripflow-web` | Vue 3 + Vite + Element Plus + Pinia 前端 |
 | `tripflow-api` | Spring Boot 3 + MyBatis-Plus 后端 |
+| `docs/` | 概要设计、原型图、实现计划 |
 
-## 本地开发环境配置
+## 本地开发
 
 ### 1. 配置环境变量
-
-复制环境变量模板并填写配置：
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，配置 ECS MySQL 连接信息：
+编辑 `.env`，填写 MySQL 与端口配置：
 
 ```bash
-# MySQL（阿里云 ECS）
-MYSQL_HOST=你的ECS公网IP
+MYSQL_HOST=你的MySQL地址
 MYSQL_PORT=3306
 MYSQL_DATABASE=tripflow
 MYSQL_USER=root
-MYSQL_PASSWORD=你的MySQL密码
+MYSQL_PASSWORD=你的密码
 
-# 后端
 API_SERVER_PORT=8080
-
-# 前端
 VITE_API_PROXY_TARGET=http://localhost:8080
 ```
 
 ### 2. 初始化数据库
 
-确保 ECS 安全组已开放 3306 端口，然后创建数据库：
+创建数据库并执行初始化脚本（顺序不可颠倒）：
 
 ```bash
-mysql -h 你的ECS公网IP -u root -p -e "CREATE DATABASE tripflow DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -h 你的MySQL地址 -u root -p < tripflow-api/src/main/resources/sql/init_tripflow.sql
+mysql -h 你的MySQL地址 -u root -p < tripflow-api/src/main/resources/sql/V2_reimbursement_schema.sql
 ```
+
+`V2_reimbursement_schema.sql` 为幂等脚本，可重复执行；包含主数据种子与报销单表结构。
 
 ### 3. 启动后端
 
@@ -51,7 +51,7 @@ cd tripflow-api
 ./mvnw spring-boot:run
 ```
 
-默认端口：`8080`
+默认地址：`http://localhost:8080`
 
 ### 4. 启动前端
 
@@ -61,72 +61,45 @@ npm install
 npm run dev
 ```
 
-默认端口：`5173`，API 通过 Vite 代理到 `/api`。
+默认地址：`http://localhost:5173`，开发环境 API 通过 Vite 代理到 `/api`。
 
----
+## 功能模块
 
-## 阿里云 ECS MySQL 配置
+### 差旅报销（`/reimbursement`）
 
-如果还没有安装 MySQL，按以下步骤操作：
+- **列表页**：多条件查询（报销单号、标题、事由、公司、部门、报销人、业务类型）、分页、编辑/复制/导出/删除
+- **详情页**：基本信息、补录行程、补助信息（含补助日历）、费用合计、费用分摊、备注
+- **单据状态**：草稿(0) / 已完成(1) / 已作废(2)
+- **主数据**：公司、部门、员工、业务类型（树形）、城市、项目；API 不可用时前端自动使用本地兜底数据
 
-### 安装 MySQL
+### 其他页面
 
-```bash
-sudo apt update
-sudo apt install mysql-server -y
-sudo systemctl start mysql
-sudo systemctl enable mysql
-```
+| 路由 | 说明 |
+|------|------|
+| `/` | 工作台：报销单统计、草稿数量、看板待办 |
+| `/approvals` | 审批中心 |
+| `/kanban` | 流程看板（待办 / 进行中 / 已完成） |
 
-### 设置 root 密码
+## API 概览
 
-```bash
-sudo mysql
-```
+所有接口前缀为 `/api`（由前端代理转发）。
 
-```sql
-ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '你的密码';
-FLUSH PRIVILEGES;
-EXIT;
-```
+| 模块 | 路径 | 说明 |
+|------|------|------|
+| 主数据 | `GET /master/*` | companies、departments、reimbursers、business-types、cities、projects |
+| 报销单 | `GET/POST/PUT/DELETE /reimbursement` | 列表、详情、创建、更新、删除 |
+| 报销单 | `POST /reimbursement/{id}/submit` | 提交 |
+| 报销单 | `POST /reimbursement/{id}/void` | 作废 |
+| 流程 | `GET /workflow/tasks` | 工作流任务 |
+| 用户 | `GET /user/list` | 用户列表 |
 
-### 允许远程连接
+## 阿里云 ECS MySQL
 
-编辑 MySQL 配置：
-
-```bash
-sudo nano /etc/mysql/mysql.conf.d/mysqld.cnf
-```
-
-找到 `bind-address = 127.0.0.1` 改为：
-
-```
-bind-address = 0.0.0.0
-```
-
-重启 MySQL：
-
-```bash
-sudo systemctl restart mysql
-```
-
-### 开放安全组端口
-
-阿里云 ECS 控制台 → 安全组 → 入方向规则：
-- 协议: TCP
-- 端口: 3306
-- 授权对象: 你的本地 IP 或 `0.0.0.0/0`
-
-## 当前能力（骨架）
-
-- 工作台统计：报销数量、待审批、看板待办
-- 差旅报销列表（`GET /expense/list`）
-- 审批中心（筛选 `expense_approval` 类型任务）
-- 流程看板三列：待办 / 进行中 / 已完成
+若使用云端 MySQL，需确保安全组开放 **3306** 端口，并将 `bind-address` 设为 `0.0.0.0`。详细步骤见历史文档或自行按 MySQL 8 远程访问规范配置。
 
 ## 后续规划
 
-- 报销单 CRUD 与附件上传
+- 用户登录与权限（employee / manager / finance）
 - 多级审批流配置
 - 看板拖拽与状态流转
-- 用户登录与权限（employee / manager / finance）
+- 附件上传与发票查验
