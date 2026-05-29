@@ -57,22 +57,30 @@ onMounted(async () => {
 }
 
 .document-header {
-  display: flex;
-  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding: 16px 0;
   border-bottom: 2px solid #303133;
   margin-bottom: 20px;
+  background: #f8fafc;
 }
 
 .document-title {
+  grid-column: 2;
   font-size: 20px;
   font-weight: bold;
   color: #303133;
   margin: 0;
+  text-align: center;
 }
 
 .document-date {
+  grid-column: 3;
+  justify-self: end;
   font-size: 14px;
   color: #606266;
 }

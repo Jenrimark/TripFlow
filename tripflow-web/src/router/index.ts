@@ -10,12 +10,6 @@ const router = createRouter({
       meta: { title: '工作台' },
     },
     {
-      path: '/expenses',
-      name: 'expenses',
-      component: () => import('@/views/ExpenseListView.vue'),
-      meta: { title: '差旅报销' },
-    },
-    {
       path: '/approvals',
       name: 'approvals',
       component: () => import('@/views/ApprovalView.vue'),
@@ -31,7 +25,7 @@ const router = createRouter({
       path: '/reimbursement',
       name: 'reimbursement-list',
       component: () => import('@/views/reimbursement/ReimbursementListView.vue'),
-      meta: { title: '报销单列表' },
+      meta: { title: '差旅报销' },
     },
     {
       path: '/reimbursement/new',

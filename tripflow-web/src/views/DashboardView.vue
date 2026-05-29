@@ -1,23 +1,27 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getExpenseList } from '@/api/expense'
+import { reimbursementApi } from '@/api/reimbursement'
 import { getWorkflowTasks } from '@/api/workflow'
+import { DocumentStatus } from '@/types/reimbursement'
 
-const expenseCount = ref(0)
-const pendingApprovalCount = ref(0)
+const reimbursementCount = ref(0)
+const draftCount = ref(0)
 const kanbanTodoCount = ref(0)
 const loading = ref(false)
 
 onMounted(async () => {
   loading.value = true
   try {
-    const [expenseRes, taskRes] = await Promise.all([getExpenseList(), getWorkflowTasks()])
-    const expenses = expenseRes.data
-    const tasks = taskRes.data
-    expenseCount.value = expenses.length
-    pendingApprovalCount.value = expenses.filter((e) => e.status === 'pending').length
-    kanbanTodoCount.value = tasks.filter((t) => t.kanbanStatus === 'todo').length
+    const [reimbursementRes, taskRes] = await Promise.all([
+      reimbursementApi.getList({}, 1, 500),
+      getWorkflowTasks(),
+    ])
+    reimbursementCount.value = reimbursementRes.data.total
+    draftCount.value = reimbursementRes.data.list.filter(
+      (item) => item.status === DocumentStatus.DRAFT,
+    ).length
+    kanbanTodoCount.value = taskRes.data.filter((t) => t.kanbanStatus === 'todo').length
   } catch {
     ElMessage.warning('无法连接后端，请先启动 tripflow-api 并初始化数据库')
   } finally {
@@ -32,13 +36,13 @@ onMounted(async () => {
       <el-col :span="8">
         <el-card shadow="hover">
           <p class="label">报销单总数</p>
-          <p class="value">{{ expenseCount }}</p>
+          <p class="value">{{ reimbursementCount }}</p>
         </el-card>
       </el-col>
       <el-col :span="8">
         <el-card shadow="hover">
-          <p class="label">待审批报销</p>
-          <p class="value warn">{{ pendingApprovalCount }}</p>
+          <p class="label">草稿报销</p>
+          <p class="value warn">{{ draftCount }}</p>
         </el-card>
       </el-col>
       <el-col :span="8">

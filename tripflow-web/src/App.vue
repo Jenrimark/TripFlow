@@ -5,11 +5,14 @@ import { useRoute, useRouter } from 'vue-router'
 const route = useRoute()
 const router = useRouter()
 
-const activeMenu = computed(() => route.path)
+const activeMenu = computed(() => {
+  if (route.path.startsWith('/reimbursement')) return '/reimbursement'
+  return route.path
+})
 
 const menuItems = [
   { path: '/', label: '工作台', icon: 'Odometer' },
-  { path: '/expenses', label: '差旅报销', icon: 'Wallet' },
+  { path: '/reimbursement', label: '差旅报销', icon: 'Wallet' },
   { path: '/approvals', label: '审批中心', icon: 'CircleCheck' },
   { path: '/kanban', label: '流程看板', icon: 'Grid' },
 ]

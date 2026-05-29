@@ -287,6 +287,9 @@ function handleCurrentChange() {
 
 onMounted(async () => {
   await loadMasterData()
+  queryForm.value.companyIds = companies.value.map((c) => c.reimCompanyId)
+  queryForm.value.departmentIds = departments.value.map((d) => d.reimDepartmentId)
+  store.query = { ...queryForm.value }
   store.fetchReimbursements()
 })
 </script>

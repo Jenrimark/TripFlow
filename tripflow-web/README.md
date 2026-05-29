@@ -12,6 +12,6 @@ npm run dev
 ## 页面路由
 
 - `/` 工作台
-- `/expenses` 差旅报销
+- `/reimbursement` 差旅报销
 - `/approvals` 审批中心
 - `/kanban` 流程看板

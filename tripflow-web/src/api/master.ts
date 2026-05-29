@@ -28,6 +28,7 @@ export interface BusinessType {
   thereSubordinateNode: string
   superiorId: string
   children?: BusinessType[]
+  disabled?: boolean
 }
 
 export interface City {
@@ -82,5 +83,17 @@ export function buildBusinessTypeTree(types: BusinessType[]): BusinessType[] {
       }
     }
   })
+  markNonLeafDisabled(roots)
   return roots
+}
+
+function markNonLeafDisabled(nodes: BusinessType[]) {
+  nodes.forEach((node) => {
+    if (node.thereSubordinateNode === '1') {
+      node.disabled = true
+    }
+    if (node.children?.length) {
+      markNonLeafDisabled(node.children)
+    }
+  })
 }

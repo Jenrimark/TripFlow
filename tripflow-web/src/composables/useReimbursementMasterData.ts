@@ -9,6 +9,7 @@ import {
   type City,
   type Project,
 } from '@/api/master'
+import { masterDataFallback } from '@/data/masterDataFallback'
 
 const companies = shallowRef<ReimCompany[]>([])
 const departments = shallowRef<ReimDepartment[]>([])
@@ -18,6 +19,18 @@ const cities = shallowRef<City[]>([])
 const projects = shallowRef<Project[]>([])
 const loaded = ref(false)
 const loading = ref(false)
+const usingFallback = ref(false)
+
+function applyFallback() {
+  companies.value = masterDataFallback.companies
+  departments.value = masterDataFallback.departments
+  reimbursers.value = masterDataFallback.reimbursers
+  businessTypes.value = buildBusinessTypeTree(masterDataFallback.businessTypesFlat)
+  cities.value = masterDataFallback.cities
+  projects.value = masterDataFallback.projects
+  usingFallback.value = true
+  loaded.value = true
+}
 
 export function useReimbursementMasterData() {
   async function loadMasterData() {
@@ -38,7 +51,10 @@ export function useReimbursementMasterData() {
       businessTypes.value = buildBusinessTypeTree(typeRes.data)
       cities.value = cityRes.data
       projects.value = projectRes.data
+      usingFallback.value = false
       loaded.value = true
+    } catch {
+      applyFallback()
     } finally {
       loading.value = false
     }
@@ -52,6 +68,7 @@ export function useReimbursementMasterData() {
     cities,
     projects,
     loading,
+    usingFallback,
     loadMasterData,
   }
 }
