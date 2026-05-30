@@ -57,10 +57,13 @@ function navigate(path: string) {
 
 <style scoped>
 .layout {
+  --sidebar-width: 220px;
   min-height: 100vh;
 }
 
 .aside {
+  position: relative;
+  z-index: 20;
   background: #0f172a;
   color: #e2e8f0;
   border-right: 1px solid #1e293b;

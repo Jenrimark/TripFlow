@@ -1,7 +1,7 @@
 <template>
   <div class="form-footer">
     <el-button @click="handleClose">关闭</el-button>
-    <el-button v-if="!store.isViewMode" type="primary" @click="handleSubmit" :loading="submitting">提交</el-button>
+    <el-button v-if="!isViewMode" type="primary" @click="handleSubmit" :loading="submitting">提交</el-button>
   </div>
 </template>
 
@@ -10,13 +10,15 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
+import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
 
 const router = useRouter()
 const store = useReimbursementStore()
+const { isViewMode } = useReimbursementPageMode()
 const submitting = ref(false)
 
 function handleClose() {
-  if (store.isViewMode) {
+  if (isViewMode.value) {
     router.back()
   } else {
     ElMessageBox.confirm('确定要关闭当前页面吗？未保存的数据将丢失。', '提示', {
@@ -51,7 +53,7 @@ async function handleSubmit() {
 .form-footer {
   position: fixed;
   bottom: 0;
-  left: 0;
+  left: var(--sidebar-width, 220px);
   right: 0;
   background: white;
   padding: 16px 20px;
@@ -59,6 +61,6 @@ async function handleSubmit() {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  z-index: 100;
+  z-index: 10;
 }
 </style>

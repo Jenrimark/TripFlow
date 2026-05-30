@@ -15,7 +15,7 @@
             placeholder="请输入报销标题"
             maxlength="500"
             show-word-limit
-            :disabled="store.isViewMode"
+            :disabled="isViewMode"
           />
         </el-form-item>
 
@@ -27,7 +27,7 @@
             maxlength="500"
             show-word-limit
             :rows="3"
-            :disabled="store.isViewMode"
+            :disabled="isViewMode"
           />
         </el-form-item>
 
@@ -36,7 +36,7 @@
             v-model="formData.reimburserId"
             filterable
             placeholder="请选择报销人"
-            :disabled="store.isViewMode"
+            :disabled="isViewMode"
             @change="handleReimburserChange"
           >
             <el-option
@@ -57,7 +57,7 @@
             v-model="formData.companyId"
             filterable
             placeholder="请选择费用归属公司"
-            :disabled="store.isViewMode"
+            :disabled="isViewMode"
             @change="handleCompanyChange"
           >
             <el-option
@@ -76,7 +76,7 @@
             :props="{ label: 'businessTypeName', value: 'businessTypeId' }"
             check-strictly
             placeholder="请选择业务类型"
-            :disabled="store.isViewMode"
+            :disabled="isViewMode"
             @change="handleBusinessTypeChange"
           />
         </el-form-item>
@@ -90,11 +90,13 @@ import { ref, reactive, watch, onMounted } from 'vue'
 import { ArrowDown } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
+import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
 import type { ReimbursementBasicInfo } from '@/types/reimbursement'
 import type { BusinessType } from '@/api/master'
 import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
 
 const store = useReimbursementStore()
+const { isViewMode } = useReimbursementPageMode()
 const { companies, reimbursers, businessTypes, loadMasterData } = useReimbursementMasterData()
 const formRef = ref<FormInstance>()
 const expanded = ref(true)

@@ -26,7 +26,6 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
   const currentPage = ref(1)
   const pageSize = ref(10)
   const query = ref<ReimbursementQuery>({})
-  const isViewMode = ref(false)
 
   const totalAllowanceAmount = computed(() => {
     if (!currentReimbursement.value) return 0
@@ -417,7 +416,6 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     currentPage,
     pageSize,
     query,
-    isViewMode,
     totalAllowanceAmount,
     totalMealAmount,
     totalTransportAmount,

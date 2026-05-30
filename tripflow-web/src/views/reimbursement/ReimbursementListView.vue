@@ -146,7 +146,7 @@
           class-name="col-document-no"
         >
           <template #default="{ row }">
-            <el-link type="primary" class="document-no-link" @click="handleView(row)">
+            <el-link type="primary" class="document-no-link" @click="handleEdit(row)">
               {{ row.documentNo }}
             </el-link>
           </template>
@@ -200,7 +200,7 @@
         />
         <el-table-column prop="basicInfo.title" label="报销标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-link type="primary" @click="handleView(row)">
+            <el-link type="primary" @click="handleEdit(row)">
               {{ row.basicInfo.title }}
             </el-link>
           </template>
@@ -313,11 +313,11 @@ function handleCreate() {
 }
 
 function handleView(row: Reimbursement) {
-  router.push(`/reimbursement/${row.id}`)
+  router.push({ name: 'reimbursement-detail', params: { id: row.id } })
 }
 
 function handleEdit(row: Reimbursement) {
-  router.push(`/reimbursement/${row.id}/edit`)
+  router.push({ name: 'reimbursement-edit', params: { id: row.id } })
 }
 
 function handleCommand(command: string, row: Reimbursement) {

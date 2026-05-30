@@ -14,7 +14,7 @@
       <RemarkSection />
     </div>
 
-    <FormFooter :is-view-mode="isViewMode" />
+    <FormFooter />
   </div>
 </template>
 
@@ -38,12 +38,9 @@ const currentDate = computed(() => {
   return store.currentReimbursement?.createdAt || new Date().toISOString().split('T')[0]
 })
 
-const isViewMode = computed(() => route.name === 'reimbursement-detail')
 const isNewPage = computed(() => route.name === 'reimbursement-new')
 
 async function loadPage() {
-  store.isViewMode = isViewMode.value
-
   if (isNewPage.value) {
     if (!store.currentReimbursement || store.currentReimbursement.id) {
       store.createNewReimbursement()

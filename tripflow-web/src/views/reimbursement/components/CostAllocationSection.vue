@@ -5,7 +5,7 @@
         费用归属及分摊
         <span class="total-amount">分摊金额：{{ formatAmount(store.totalAllowanceAmount) }}</span>
       </span>
-      <div v-if="!store.isViewMode" class="header-actions">
+      <div v-if="!isViewMode" class="header-actions">
         <el-button type="primary" size="small" @click="handleAdd">添加一行</el-button>
         <el-button type="primary" size="small" @click="handleEvenAllocation">均摊</el-button>
       </div>
@@ -19,7 +19,7 @@
               v-model="row.companyId"
               filterable
               placeholder="请选择"
-              :disabled="$index === 0 || store.isViewMode"
+              :disabled="$index === 0 || isViewMode"
               @change="(val: string) => handleCompanyChange(row, val)"
             >
               <el-option
@@ -37,7 +37,7 @@
               v-model="row.projectId"
               filterable
               placeholder="请选择"
-              :disabled="$index === 0 || store.isViewMode"
+              :disabled="$index === 0 || isViewMode"
               @change="(val: string) => handleProjectChange(row, val)"
             >
               <el-option
@@ -53,7 +53,7 @@
           <template #default="{ row, $index }">
             <el-input
               v-model="row.ratioDisplay"
-              :disabled="$index === 0 || store.isViewMode"
+              :disabled="$index === 0 || isViewMode"
               @change="(val: string) => handleRatioChange($index, val)"
             >
               <template #append>%</template>
@@ -65,7 +65,7 @@
             <span class="amount">{{ formatAmount(row.amount) }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="!store.isViewMode" label="操作" width="100" fixed="right">
+        <el-table-column v-if="!isViewMode" label="操作" width="100" fixed="right">
           <template #default="{ row, $index }">
             <el-button type="danger" link @click="handleDelete(row, $index)">删除</el-button>
           </template>
@@ -79,11 +79,13 @@
 import { computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
+import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
 import type { CostAllocation } from '@/types/reimbursement'
 import { formatAmount } from '@/utils/reimbursementUtils'
 import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
 
 const store = useReimbursementStore()
+const { isViewMode } = useReimbursementPageMode()
 const { companies, projects, loadMasterData } = useReimbursementMasterData()
 
 const allocations = computed(() => {

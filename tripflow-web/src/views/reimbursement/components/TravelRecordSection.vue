@@ -2,7 +2,7 @@
   <div class="travel-record-section">
     <div class="section-header">
       <span class="section-title">补录行程</span>
-      <el-button v-if="!store.isViewMode" type="primary" size="small" @click="handleAdd">
+      <el-button v-if="!isViewMode" type="primary" size="small" @click="handleAdd">
         <el-icon><Plus /></el-icon>
         补录行程
       </el-button>
@@ -22,7 +22,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="description" label="行程说明" min-width="200" show-overflow-tooltip />
-        <el-table-column v-if="!store.isViewMode" label="操作" width="180" fixed="right">
+        <el-table-column v-if="!isViewMode" label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
             <el-button type="primary" link @click="handleCopy(row)">复制</el-button>
@@ -46,10 +46,12 @@ import { ref, computed } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
+import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
 import type { TravelRecord } from '@/types/reimbursement'
 import TravelRecordModal from './TravelRecordModal.vue'
 
 const store = useReimbursementStore()
+const { isViewMode } = useReimbursementPageMode()
 
 const modalVisible = ref(false)
 const modalMode = ref<'add' | 'edit' | 'copy'>('add')

@@ -42,7 +42,7 @@
         </el-table-column>
         <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="!store.isViewMode" type="primary" link @click="handleEdit(row)">编辑</el-button>
+            <el-button v-if="!isViewMode" type="primary" link @click="handleEdit(row)">编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -61,11 +61,13 @@ import { ref, computed } from 'vue'
 import { ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
+import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
 import type { AllowanceInfo, AllowanceCalendarItem } from '@/types/reimbursement'
 import { formatAmount } from '@/utils/reimbursementUtils'
 import AllowanceCalendarModal from './AllowanceCalendarModal.vue'
 
 const store = useReimbursementStore()
+const { isViewMode } = useReimbursementPageMode()
 
 const expanded = ref(true)
 const modalVisible = ref(false)
