@@ -2,83 +2,97 @@
   <div class="reimbursement-list">
     <div class="page-header">
       <h1>报销单列表</h1>
-      <el-button type="primary" @click="handleCreate">
-        <el-icon><Plus /></el-icon>
-        新增
-      </el-button>
     </div>
 
     <div class="query-section">
-      <el-form :model="queryForm" inline>
-        <el-form-item label="报销单号">
-          <el-input v-model="queryForm.documentNo" placeholder="请输入报销单号" clearable />
-        </el-form-item>
-        <el-form-item label="标题">
-          <el-input v-model="queryForm.title" placeholder="请输入标题" clearable />
-        </el-form-item>
-        <el-form-item label="事由">
-          <el-input v-model="queryForm.reason" placeholder="请输入事由" clearable />
-        </el-form-item>
-        <el-form-item label="费用归属公司">
-          <el-select
-            v-model="queryForm.companyIds"
-            multiple
-            collapse-tags
-            placeholder="请选择"
-          >
-            <el-option
-              v-for="company in companies"
-              :key="company.reimCompanyId"
-              :label="company.reimCompanyName"
-              :value="company.reimCompanyId"
+      <el-form :model="queryForm" label-width="96px" class="query-form">
+        <div class="query-grid">
+          <el-form-item label="报销单号" class="query-field">
+            <el-input
+              v-model="queryForm.documentNo"
+              placeholder="请输入报销单号"
+              clearable
             />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="报销部门">
-          <el-select
-            v-model="queryForm.departmentIds"
-            multiple
-            collapse-tags
-            placeholder="请选择"
-          >
-            <el-option
-              v-for="dept in departments"
-              :key="dept.reimDepartmentId"
-              :label="dept.reimDepartmentName"
-              :value="dept.reimDepartmentId"
+          </el-form-item>
+          <el-form-item label="标题" class="query-field">
+            <el-input v-model="queryForm.title" placeholder="请输入标题" clearable />
+          </el-form-item>
+          <el-form-item label="事由" class="query-field">
+            <el-input v-model="queryForm.reason" placeholder="请输入事由" clearable />
+          </el-form-item>
+          <el-form-item label=" " class="query-field query-field--actions">
+            <div class="query-actions">
+              <el-button type="primary" @click="handleSearch">搜索</el-button>
+              <el-button @click="handleClear">清除</el-button>
+              <el-button type="primary" plain @click="handleCreate">
+                <el-icon><Plus /></el-icon>
+                新增
+              </el-button>
+            </div>
+          </el-form-item>
+
+          <el-form-item label="费用归属公司" class="query-field">
+            <el-select
+              v-model="queryForm.companyIds"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="请选择"
+            >
+              <el-option
+                v-for="company in companies"
+                :key="company.reimCompanyId"
+                :label="company.reimCompanyName"
+                :value="company.reimCompanyId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="报销部门" class="query-field">
+            <el-select
+              v-model="queryForm.departmentIds"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="请选择"
+            >
+              <el-option
+                v-for="dept in departments"
+                :key="dept.reimDepartmentId"
+                :label="dept.reimDepartmentName"
+                :value="dept.reimDepartmentId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="报销人" class="query-field">
+            <el-select
+              v-model="queryForm.reimburserIds"
+              multiple
+              collapse-tags
+              collapse-tags-tooltip
+              filterable
+              placeholder="请输入姓名或工号"
+            >
+              <el-option
+                v-for="person in reimbursers"
+                :key="person.reimburserId"
+                :label="`${person.reimburserName}(${person.reimburserNo})`"
+                :value="person.reimburserId"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="业务类型" class="query-field">
+            <el-tree-select
+              v-model="queryForm.businessTypeIds"
+              :data="businessTypes"
+              :props="{ label: 'businessTypeName', value: 'businessTypeId' }"
+              multiple
+              check-strictly
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="请选择"
             />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="报销人">
-          <el-select
-            v-model="queryForm.reimburserIds"
-            multiple
-            collapse-tags
-            filterable
-            placeholder="请输入姓名或工号"
-          >
-            <el-option
-              v-for="person in reimbursers"
-              :key="person.reimburserId"
-              :label="`${person.reimburserName}(${person.reimburserNo})`"
-              :value="person.reimburserId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="业务类型">
-          <el-tree-select
-            v-model="queryForm.businessTypeIds"
-            :data="businessTypes"
-            :props="{ label: 'businessTypeName', value: 'businessTypeId' }"
-            multiple
-            check-strictly
-            placeholder="请选择"
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">搜索</el-button>
-          <el-button @click="handleClear">清除</el-button>
-        </el-form-item>
+          </el-form-item>
+        </div>
       </el-form>
     </div>
 
@@ -96,7 +110,7 @@
             {{ (store.currentPage - 1) * store.pageSize + $index + 1 }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="110" align="center" fixed="left" :resizable="false">
+        <el-table-column label="操作" width="120" align="center" fixed="left" :resizable="false">
           <template #default="{ row }">
             <div class="row-actions">
               <el-tooltip content="查看" placement="top">
@@ -127,34 +141,46 @@
         <el-table-column
           prop="documentNo"
           label="报销单号"
-          width="160"
+          width="180"
           :resizable="false"
-          show-overflow-tooltip
+          class-name="col-document-no"
         >
           <template #default="{ row }">
-            <el-link type="primary" @click="handleView(row)">
+            <el-link type="primary" class="document-no-link" @click="handleView(row)">
               {{ row.documentNo }}
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="单据状态" width="100" :resizable="false">
+        <el-table-column
+          prop="status"
+          label="单据状态"
+          width="100"
+          align="center"
+          header-align="center"
+          :resizable="false"
+        >
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
               {{ getStatusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="单据类型" width="120" :resizable="false" show-overflow-tooltip>
+        <el-table-column
+          label="单据类型"
+          width="120"
+          :resizable="false"
+          show-overflow-tooltip
+        >
           <template #default="{ row }">
             {{ row.documentType || REIMBURSEMENT_DOCUMENT_TYPE }}
           </template>
         </el-table-column>
-        <el-table-column label="报销人" min-width="140" :resizable="false" show-overflow-tooltip>
+        <el-table-column label="报销人" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
             {{ `${row.basicInfo.reimburserName}(${row.basicInfo.reimburserNo})` }}
           </template>
         </el-table-column>
-        <el-table-column label="报销部门" min-width="180" :resizable="false" show-overflow-tooltip>
+        <el-table-column label="报销部门" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             {{ `${row.basicInfo.departmentName}(${row.basicInfo.departmentNo})` }}
           </template>
@@ -163,41 +189,29 @@
           prop="basicInfo.companyName"
           label="费用归属公司"
           min-width="160"
-          :resizable="false"
           show-overflow-tooltip
         />
         <el-table-column
           prop="basicInfo.businessTypeName"
           label="业务类型"
-          width="120"
+          width="130"
           :resizable="false"
           show-overflow-tooltip
         />
-        <el-table-column
-          prop="basicInfo.title"
-          label="报销标题"
-          min-width="200"
-          :resizable="false"
-          show-overflow-tooltip
-        >
+        <el-table-column prop="basicInfo.title" label="报销标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <el-link type="primary" @click="handleView(row)">
               {{ row.basicInfo.title }}
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column
-          prop="basicInfo.reason"
-          label="报销事由"
-          min-width="150"
-          :resizable="false"
-          show-overflow-tooltip
-        />
+        <el-table-column prop="basicInfo.reason" label="报销事由" min-width="150" show-overflow-tooltip />
         <el-table-column
           prop="totalAllowanceAmount"
           label="补助金额"
           width="120"
           align="right"
+          header-align="right"
           :resizable="false"
         >
           <template #default="{ row }">
@@ -207,9 +221,10 @@
         <el-table-column
           prop="createdAt"
           label="创建时间"
-          width="120"
+          width="110"
+          align="center"
+          header-align="center"
           :resizable="false"
-          show-overflow-tooltip
         />
       </el-table>
 
@@ -370,10 +385,7 @@ onMounted(async () => {
 }
 
 .page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .page-header h1 {
@@ -388,6 +400,53 @@ onMounted(async () => {
   margin-bottom: 20px;
 }
 
+.query-form {
+  --query-field-width: 220px;
+}
+
+.query-grid {
+  display: grid;
+  grid-template-columns: repeat(4, calc(var(--query-field-width) + 96px));
+  column-gap: 24px;
+  row-gap: 16px;
+  align-items: center;
+}
+
+.query-form :deep(.query-field) {
+  margin-bottom: 0;
+  margin-right: 0;
+}
+
+.query-form :deep(.query-field .el-form-item__content) {
+  width: var(--query-field-width);
+  flex: none;
+}
+
+.query-form :deep(.query-field .el-input),
+.query-form :deep(.query-field .el-select),
+.query-form :deep(.query-field .el-tree-select) {
+  width: var(--query-field-width);
+}
+
+.query-form :deep(.query-field--actions .el-form-item__content) {
+  width: auto;
+  min-width: var(--query-field-width);
+}
+
+.query-form :deep(.query-field--actions .el-form-item__label) {
+  visibility: hidden;
+}
+
+.query-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: var(--query-field-width);
+  height: 32px;
+  margin-left: -50px;
+}
+
 .table-section {
   background: white;
   border-radius: 4px;
@@ -398,13 +457,12 @@ onMounted(async () => {
   --el-table-border-color: #ebeef5;
 }
 
-/* 禁用表头列宽拖拽光标 */
-.reimbursement-table :deep(.el-table__header th.el-table__cell) {
-  cursor: default;
+.reimbursement-table :deep(.col-document-no .cell) {
+  white-space: nowrap;
 }
 
-.reimbursement-table :deep(.el-table__header th.el-table__cell .cell) {
-  user-select: none;
+.document-no-link {
+  white-space: nowrap;
 }
 
 .pagination-section {
@@ -414,24 +472,30 @@ onMounted(async () => {
 }
 
 .row-actions {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 8px;
+  width: 100%;
 }
 
 .action-icon {
-  padding: 4px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
   font-size: 16px;
   color: #409eff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .more-btn {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border: 1px solid #c6e2ff;
   border-radius: 50%;
-  margin-left: 2px;
 }
 
 .more-btn:hover {
