@@ -9,6 +9,7 @@ public class ReimbursementDto {
 
     private String id;
     private String documentNo;
+    private String documentType;
     private Integer status;
     private String createdAt;
     private BasicInfo basicInfo;

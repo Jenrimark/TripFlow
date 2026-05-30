@@ -5,6 +5,9 @@ export enum DocumentStatus {
   VOIDED = 2, // 已作废
 }
 
+/** 差旅报销单固定单据类型（列表展示） */
+export const REIMBURSEMENT_DOCUMENT_TYPE = '日常报销单'
+
 // 报销单基础信息
 export interface ReimbursementBasicInfo {
   title: string // 报销标题，最多500字
@@ -86,6 +89,7 @@ export interface CostAllocation {
 export interface Reimbursement {
   id: string // 报销单ID
   documentNo: string // 报销单号
+  documentType?: string // 单据类型
   status: DocumentStatus // 单据状态
   createdAt: string // 创建时间
   basicInfo: ReimbursementBasicInfo // 基本信息

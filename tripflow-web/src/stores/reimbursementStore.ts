@@ -4,6 +4,7 @@ import {
   type Reimbursement,
   type ReimbursementQuery,
   DocumentStatus,
+  REIMBURSEMENT_DOCUMENT_TYPE,
   type TravelRecord,
   type AllowanceInfo,
   type CostAllocation,
@@ -136,6 +137,7 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     currentReimbursement.value = {
       id: '',
       documentNo: '',
+      documentType: REIMBURSEMENT_DOCUMENT_TYPE,
       status: DocumentStatus.DRAFT,
       createdAt: new Date().toISOString().split('T')[0]!,
       basicInfo: {

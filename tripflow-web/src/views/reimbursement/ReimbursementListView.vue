@@ -83,65 +83,134 @@
     </div>
 
     <div class="table-section">
-      <el-table :data="store.reimbursementList" v-loading="store.loading" stripe border>
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-dropdown @command="(cmd: string) => handleCommand(cmd, row)">
-              <span class="el-dropdown-link">
-                编辑
-                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </span>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="edit">编辑</el-dropdown-item>
-                  <el-dropdown-item command="copy">复制</el-dropdown-item>
-                  <el-dropdown-item command="export">导出</el-dropdown-item>
-                  <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+      <el-table
+        :data="store.reimbursementList"
+        v-loading="store.loading"
+        stripe
+        border
+        class="reimbursement-table"
+        style="width: 100%"
+      >
+        <el-table-column label="序号" width="60" align="center" fixed="left" :resizable="false">
+          <template #default="{ $index }">
+            {{ (store.currentPage - 1) * store.pageSize + $index + 1 }}
           </template>
         </el-table-column>
-        <el-table-column prop="documentNo" label="报销单号" width="150">
+        <el-table-column label="操作" width="110" align="center" fixed="left" :resizable="false">
+          <template #default="{ row }">
+            <div class="row-actions">
+              <el-tooltip content="查看" placement="top">
+                <el-button link type="primary" class="action-icon" @click="handleView(row)">
+                  <el-icon><Document /></el-icon>
+                </el-button>
+              </el-tooltip>
+              <el-tooltip content="编辑" placement="top">
+                <el-button link type="primary" class="action-icon" @click="handleEdit(row)">
+                  <el-icon><EditPen /></el-icon>
+                </el-button>
+              </el-tooltip>
+              <el-dropdown trigger="click" @command="(cmd: string) => handleCommand(cmd, row)">
+                <el-button link class="action-icon more-btn">
+                  <el-icon><MoreFilled /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="delete">删除</el-dropdown-item>
+                    <el-dropdown-item command="push">手工推送</el-dropdown-item>
+                    <el-dropdown-item command="copy">复制</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="documentNo"
+          label="报销单号"
+          width="160"
+          :resizable="false"
+          show-overflow-tooltip
+        >
           <template #default="{ row }">
             <el-link type="primary" @click="handleView(row)">
               {{ row.documentNo }}
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="单据状态" width="100">
+        <el-table-column prop="status" label="单据状态" width="100" :resizable="false">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)">
               {{ getStatusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="报销人" width="150">
+        <el-table-column label="单据类型" width="120" :resizable="false" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.documentType || REIMBURSEMENT_DOCUMENT_TYPE }}
+          </template>
+        </el-table-column>
+        <el-table-column label="报销人" min-width="140" :resizable="false" show-overflow-tooltip>
           <template #default="{ row }">
             {{ `${row.basicInfo.reimburserName}(${row.basicInfo.reimburserNo})` }}
           </template>
         </el-table-column>
-        <el-table-column label="报销部门" width="180">
+        <el-table-column label="报销部门" min-width="180" :resizable="false" show-overflow-tooltip>
           <template #default="{ row }">
             {{ `${row.basicInfo.departmentName}(${row.basicInfo.departmentNo})` }}
           </template>
         </el-table-column>
-        <el-table-column prop="basicInfo.companyName" label="费用归属公司" width="150" />
-        <el-table-column prop="basicInfo.businessTypeName" label="业务类型" width="120" />
-        <el-table-column prop="basicInfo.title" label="报销标题" min-width="200">
+        <el-table-column
+          prop="basicInfo.companyName"
+          label="费用归属公司"
+          min-width="160"
+          :resizable="false"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="basicInfo.businessTypeName"
+          label="业务类型"
+          width="120"
+          :resizable="false"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="basicInfo.title"
+          label="报销标题"
+          min-width="200"
+          :resizable="false"
+          show-overflow-tooltip
+        >
           <template #default="{ row }">
             <el-link type="primary" @click="handleView(row)">
               {{ row.basicInfo.title }}
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="basicInfo.reason" label="报销事由" min-width="150" />
-        <el-table-column prop="totalAllowanceAmount" label="补助金额" width="120" align="right">
+        <el-table-column
+          prop="basicInfo.reason"
+          label="报销事由"
+          min-width="150"
+          :resizable="false"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="totalAllowanceAmount"
+          label="补助金额"
+          width="120"
+          align="right"
+          :resizable="false"
+        >
           <template #default="{ row }">
             {{ formatAmount(row.totalAllowanceAmount) }}
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="120" />
+        <el-table-column
+          prop="createdAt"
+          label="创建时间"
+          width="120"
+          :resizable="false"
+          show-overflow-tooltip
+        />
       </el-table>
 
       <div class="pagination-section">
@@ -163,9 +232,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, Document, EditPen, MoreFilled } from '@element-plus/icons-vue'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
-import { DocumentStatus, type Reimbursement } from '@/types/reimbursement'
+import { DocumentStatus, REIMBURSEMENT_DOCUMENT_TYPE, type Reimbursement } from '@/types/reimbursement'
 import { formatAmount } from '@/utils/reimbursementUtils'
 import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
 
@@ -232,16 +301,17 @@ function handleView(row: Reimbursement) {
   router.push(`/reimbursement/${row.id}`)
 }
 
+function handleEdit(row: Reimbursement) {
+  router.push(`/reimbursement/${row.id}/edit`)
+}
+
 function handleCommand(command: string, row: Reimbursement) {
   switch (command) {
-    case 'edit':
-      router.push(`/reimbursement/${row.id}/edit`)
-      break
     case 'copy':
       handleCopy(row)
       break
-    case 'export':
-      handleExport(row)
+    case 'push':
+      handleManualPush(row)
       break
     case 'delete':
       handleDelete(row)
@@ -256,9 +326,9 @@ function handleCopy(row: Reimbursement) {
   })
 }
 
-function handleExport(row: Reimbursement) {
+function handleManualPush(row: Reimbursement) {
   void row
-  ElMessage.success('导出成功')
+  ElMessage.success('推送成功')
 }
 
 function handleDelete(row: Reimbursement) {
@@ -321,6 +391,20 @@ onMounted(async () => {
 .table-section {
   background: white;
   border-radius: 4px;
+  overflow: hidden;
+}
+
+.reimbursement-table {
+  --el-table-border-color: #ebeef5;
+}
+
+/* 禁用表头列宽拖拽光标 */
+.reimbursement-table :deep(.el-table__header th.el-table__cell) {
+  cursor: default;
+}
+
+.reimbursement-table :deep(.el-table__header th.el-table__cell .cell) {
+  user-select: none;
 }
 
 .pagination-section {
@@ -329,8 +413,29 @@ onMounted(async () => {
   padding: 20px;
 }
 
-.el-dropdown-link {
-  cursor: pointer;
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.action-icon {
+  padding: 4px;
+  font-size: 16px;
   color: #409eff;
+}
+
+.more-btn {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #c6e2ff;
+  border-radius: 50%;
+  margin-left: 2px;
+}
+
+.more-btn:hover {
+  border-color: #409eff;
+  background: #ecf5ff;
 }
 </style>

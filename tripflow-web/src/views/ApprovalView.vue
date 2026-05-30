@@ -11,6 +11,28 @@ const approvalTasks = computed(() =>
   tasks.value.filter((t) => t.taskType === 'expense_approval'),
 )
 
+type TagType = 'success' | 'info' | 'warning' | 'danger' | 'primary'
+
+const approvalStatusText: Record<string, string> = {
+  pending: '待处理',
+  approved: '已通过',
+  rejected: '已驳回',
+}
+
+const approvalStatusType: Record<string, TagType> = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'danger',
+}
+
+function getApprovalStatusText(status: string) {
+  return approvalStatusText[status] ?? status
+}
+
+function getApprovalStatusType(status: string): TagType {
+  return approvalStatusType[status] ?? 'info'
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -31,8 +53,8 @@ onMounted(async () => {
       <el-table-column prop="title" label="任务" min-width="220" />
       <el-table-column prop="approvalStatus" label="审批状态" width="120">
         <template #default="{ row }">
-          <el-tag :type="row.approvalStatus === 'pending' ? 'warning' : 'success'">
-            {{ row.approvalStatus === 'pending' ? '待处理' : row.approvalStatus }}
+          <el-tag :type="getApprovalStatusType(row.approvalStatus)">
+            {{ getApprovalStatusText(row.approvalStatus) }}
           </el-tag>
         </template>
       </el-table-column>

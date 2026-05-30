@@ -227,6 +227,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             if (record.getTotalAllowanceAmount() != null) {
                 dto.setTotalAllowanceAmount(record.getTotalAllowanceAmount().doubleValue());
             }
+            if (dto.getDocumentType() == null || dto.getDocumentType().isBlank()) {
+                dto.setDocumentType("日常报销单");
+            }
             return dto;
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("报销单数据解析失败", e);
