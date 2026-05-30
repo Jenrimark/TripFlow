@@ -26,6 +26,7 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
   const currentPage = ref(1)
   const pageSize = ref(10)
   const query = ref<ReimbursementQuery>({})
+  const isViewMode = ref(false)
 
   const totalAllowanceAmount = computed(() => {
     if (!currentReimbursement.value) return 0
@@ -131,6 +132,52 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
 
   async function deleteReimbursement(id: string) {
     await reimbursementApi.delete(id)
+  }
+
+  function newLocalId(prefix: string) {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+  }
+
+  function copyReimbursement(reimbursement: Reimbursement): Reimbursement {
+    const travelIdMap = new Map<string, string>()
+    const travelRecords = (reimbursement.travelRecords ?? []).map((r) => {
+      const newId = newLocalId('travel')
+      travelIdMap.set(r.id, newId)
+      return { ...r, id: newId }
+    })
+
+    const copied: Reimbursement = {
+      ...JSON.parse(JSON.stringify(reimbursement)),
+      id: '',
+      documentNo: '',
+      status: DocumentStatus.DRAFT,
+      createdAt: new Date().toISOString().split('T')[0]!,
+      basicInfo: {
+        ...reimbursement.basicInfo,
+        title: reimbursement.basicInfo.title ? `${reimbursement.basicInfo.title}-副本` : '',
+      },
+      travelRecords,
+      allowances: (reimbursement.allowances ?? []).map((a) => ({
+        ...a,
+        id: newLocalId('allowance'),
+        travelRecordId: travelIdMap.get(a.travelRecordId) ?? a.travelRecordId,
+        calendar: (a.calendar ?? []).map((c) => ({ ...c })),
+      })),
+      costAllocations: (reimbursement.costAllocations ?? []).map((a) => ({
+        ...a,
+        id: newLocalId('allocation'),
+      })),
+    }
+    currentReimbursement.value = copied
+    return copied
+  }
+
+  async function copyReimbursementFromId(id: string): Promise<Reimbursement> {
+    await fetchReimbursementDetail(id)
+    if (!currentReimbursement.value) {
+      throw new Error('报销单不存在')
+    }
+    return copyReimbursement(currentReimbursement.value)
   }
 
   function createNewReimbursement() {
@@ -370,6 +417,7 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     currentPage,
     pageSize,
     query,
+    isViewMode,
     totalAllowanceAmount,
     totalMealAmount,
     totalTransportAmount,
@@ -379,6 +427,8 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     fetchReimbursements,
     fetchReimbursementDetail,
     createNewReimbursement,
+    copyReimbursement,
+    copyReimbursementFromId,
     addTravelRecord,
     updateTravelRecord,
     deleteTravelRecord,

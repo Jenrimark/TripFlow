@@ -15,6 +15,7 @@
             placeholder="请输入报销标题"
             maxlength="500"
             show-word-limit
+            :disabled="store.isViewMode"
           />
         </el-form-item>
 
@@ -26,6 +27,7 @@
             maxlength="500"
             show-word-limit
             :rows="3"
+            :disabled="store.isViewMode"
           />
         </el-form-item>
 
@@ -34,6 +36,7 @@
             v-model="formData.reimburserId"
             filterable
             placeholder="请选择报销人"
+            :disabled="store.isViewMode"
             @change="handleReimburserChange"
           >
             <el-option
@@ -54,6 +57,7 @@
             v-model="formData.companyId"
             filterable
             placeholder="请选择费用归属公司"
+            :disabled="store.isViewMode"
             @change="handleCompanyChange"
           >
             <el-option
@@ -72,6 +76,7 @@
             :props="{ label: 'businessTypeName', value: 'businessTypeId' }"
             check-strictly
             placeholder="请选择业务类型"
+            :disabled="store.isViewMode"
             @change="handleBusinessTypeChange"
           />
         </el-form-item>

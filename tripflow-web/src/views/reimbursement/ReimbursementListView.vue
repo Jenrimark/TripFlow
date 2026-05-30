@@ -334,11 +334,20 @@ function handleCommand(command: string, row: Reimbursement) {
   }
 }
 
-function handleCopy(row: Reimbursement) {
-  void row
-  ElMessageBox.confirm('确定要复制该报销单吗？', '提示', { type: 'info' }).then(() => {
+async function handleCopy(row: Reimbursement) {
+  try {
+    await ElMessageBox.confirm('确定要复制该报销单吗？', '提示', { type: 'info' })
+  } catch {
+    return
+  }
+
+  try {
+    await store.copyReimbursementFromId(row.id)
     ElMessage.success('复制成功')
-  })
+    await router.push('/reimbursement/new')
+  } catch {
+    ElMessage.error('复制失败')
+  }
 }
 
 function handleManualPush(row: Reimbursement) {

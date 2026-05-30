@@ -2,7 +2,7 @@
   <div class="remark-section">
     <div class="section-header">
       <span class="section-title">备注信息</span>
-      <el-button type="danger" size="small" @click="handleClear">删除备注</el-button>
+      <el-button v-if="!store.isViewMode" type="danger" size="small" @click="handleClear">删除备注</el-button>
     </div>
 
     <div class="section-content">
@@ -13,6 +13,7 @@
         maxlength="1000"
         show-word-limit
         :rows="4"
+        :disabled="store.isViewMode"
       />
     </div>
   </div>

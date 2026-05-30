@@ -14,12 +14,12 @@
       <RemarkSection />
     </div>
 
-    <FormFooter />
+    <FormFooter :is-view-mode="isViewMode" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
 import BasicInfoSection from './components/BasicInfoSection.vue'
@@ -38,14 +38,26 @@ const currentDate = computed(() => {
   return store.currentReimbursement?.createdAt || new Date().toISOString().split('T')[0]
 })
 
-onMounted(async () => {
-  const id = route.params.id as string
-  if (id && id !== 'new') {
-    await store.fetchReimbursementDetail(id)
-  } else if (!store.currentReimbursement) {
-    store.createNewReimbursement()
+const isViewMode = computed(() => route.name === 'reimbursement-detail')
+const isNewPage = computed(() => route.name === 'reimbursement-new')
+
+async function loadPage() {
+  store.isViewMode = isViewMode.value
+
+  if (isNewPage.value) {
+    if (!store.currentReimbursement || store.currentReimbursement.id) {
+      store.createNewReimbursement()
+    }
+    return
   }
-})
+
+  const id = route.params.id as string
+  if (id) {
+    await store.fetchReimbursementDetail(id)
+  }
+}
+
+watch(() => route.fullPath, loadPage, { immediate: true })
 </script>
 
 <style scoped>

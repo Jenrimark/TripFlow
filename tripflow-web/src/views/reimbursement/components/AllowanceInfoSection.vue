@@ -42,7 +42,7 @@
         </el-table-column>
         <el-table-column label="操作" width="100" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
+            <el-button v-if="!store.isViewMode" type="primary" link @click="handleEdit(row)">编辑</el-button>
           </template>
         </el-table-column>
       </el-table>
