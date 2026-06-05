@@ -20,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -53,6 +54,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             int page,
             int pageSize) {
 
+        // 列表页只查询主表中的可检索字段，详情页再从 content JSON 恢复完整表单。
         LambdaQueryWrapper<ReimbursementRecord> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(documentNo) && documentNo.length() >= 3) {
             wrapper.like(ReimbursementRecord::getDocumentNo, documentNo);
@@ -99,6 +101,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     @Override
     @Transactional
     public ReimbursementDto create(ReimbursementDto dto) {
+        // 草稿保存只做基础合法性校验；提交时会追加必填项和金额分摊校验。
         validator.validateForSave(dto);
         ReimbursementRecord record = new ReimbursementRecord();
         record.setDocumentNo(generateDocumentNo());
@@ -112,18 +115,128 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     }
 
     @Override
-    @Transactional
+    @Transactional  // 事务
     public ReimbursementDto update(Long id, ReimbursementDto dto) {
+        // 根据id查找报销单
         ReimbursementRecord record = getById(id);
+        // 校验报销单是否存在
         if (record == null) {
-            throw new IllegalArgumentException("报销单不存在");
+            throw new IllegalArgumentException("报销单不存在");  // 抛出异常
         }
+
+        // 校验数据（只校验必填数据）
         validator.validateForSave(dto);
+        // 修改更新时间
+        record.setUpdatedAt(LocalDateTime.now());
+        // 把前端传来的dto写到record
+        applyDtoToRecord(dto, record);
+        // 更新reimbursement主表
+        updateById(record);
+        // 更新子表数据（删除原本的子表记录，在插入新的子表）
+        childRecordService.replaceChildRecords(id, dto);
+        return toDto(record);
+    }
+
+    @Override
+    @Transactional
+    public List<ReimbursementDto.TravelRecord> listTravelRecords(Long id) {
+        ReimbursementDto dto = getExistingReimbursementDto(id);
+        return dto.getTravelRecords() != null ? dto.getTravelRecords() : List.of();
+    }
+
+    @Override
+    @Transactional
+    public ReimbursementDto.TravelRecord getTravelRecord(Long id, String recordKey) {
+        ReimbursementDto dto = getExistingReimbursementDto(id);
+        return findTravelRecord(dto, recordKey);
+    }
+
+    @Override
+    @Transactional
+    public ReimbursementDto.TravelRecord addTravelRecord(Long id, ReimbursementDto.TravelRecord travelRecord) {
+        ReimbursementRecord record = getExistingReimbursementRecord(id);
+        if (travelRecord == null) {
+            throw new IllegalArgumentException("补录行程不能为空");
+        }
+
+        ReimbursementDto dto = toDto(record);
+        List<ReimbursementDto.TravelRecord> travelRecords =
+                dto.getTravelRecords() != null ? new ArrayList<>(dto.getTravelRecords()) : new ArrayList<>();
+
+        if (!StringUtils.hasText(travelRecord.getId())) {
+            travelRecord.setId("travel_" + System.currentTimeMillis());
+        }
+
+        travelRecords.add(travelRecord);
+        dto.setTravelRecords(travelRecords);
+
+        // 复用现有保存校验，保证新增行程与当前草稿整体规则一致。
+        validator.validateForSave(dto);
+
         record.setUpdatedAt(LocalDateTime.now());
         applyDtoToRecord(dto, record);
         updateById(record);
         childRecordService.replaceChildRecords(id, dto);
-        return toDto(record);
+        return travelRecord;
+    }
+
+    @Override
+    @Transactional
+    public ReimbursementDto.TravelRecord updateTravelRecord(
+            Long id,
+            String recordKey,
+            ReimbursementDto.TravelRecord travelRecord) {
+        ReimbursementRecord record = getExistingReimbursementRecord(id);
+        if (travelRecord == null) {
+            throw new IllegalArgumentException("补录行程不能为空");
+        }
+
+        ReimbursementDto dto = toDto(record);
+        ReimbursementDto.TravelRecord existing = findTravelRecord(dto, recordKey);
+
+        travelRecord.setId(recordKey);
+        existing.setReimburserId(travelRecord.getReimburserId());
+        existing.setReimburserName(travelRecord.getReimburserName());
+        existing.setReimburserNo(travelRecord.getReimburserNo());
+        existing.setDepartureCityId(travelRecord.getDepartureCityId());
+        existing.setDepartureCityName(travelRecord.getDepartureCityName());
+        existing.setArrivalCityId(travelRecord.getArrivalCityId());
+        existing.setArrivalCityName(travelRecord.getArrivalCityName());
+        existing.setDepartureDate(travelRecord.getDepartureDate());
+        existing.setArrivalDate(travelRecord.getArrivalDate());
+        existing.setDescription(travelRecord.getDescription());
+
+        validator.validateForSave(dto);
+
+        record.setUpdatedAt(LocalDateTime.now());
+        applyDtoToRecord(dto, record);
+        updateById(record);
+        childRecordService.replaceChildRecords(id, dto);
+        return existing;
+    }
+
+    @Override
+    @Transactional
+    public void deleteTravelRecord(Long id, String recordKey) {
+        ReimbursementRecord record = getExistingReimbursementRecord(id);
+        ReimbursementDto dto = toDto(record);
+        ReimbursementDto.TravelRecord existing = findTravelRecord(dto, recordKey);
+
+        List<ReimbursementDto.TravelRecord> travelRecords =
+                dto.getTravelRecords() != null ? new ArrayList<>(dto.getTravelRecords()) : new ArrayList<>();
+        travelRecords.removeIf(item -> recordKey.equals(item.getId()));
+        dto.setTravelRecords(travelRecords);
+
+        if (dto.getAllowances() != null) {
+            dto.setAllowances(dto.getAllowances().stream()
+                    .filter(item -> !recordKey.equals(item.getTravelRecordId()))
+                    .toList());
+        }
+
+        record.setUpdatedAt(LocalDateTime.now());
+        applyDtoToRecord(dto, record);
+        updateById(record);
+        childRecordService.replaceChildRecords(id, dto);
     }
 
     @Override
@@ -144,6 +257,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             throw new IllegalArgumentException("报销单不存在");
         }
         ReimbursementDto dto = toDto(record);
+        // 提交是状态流转入口，必须基于持久化快照重新校验，避免前端绕过校验。
         validator.validateForSubmit(dto);
         record.setStatus(1);
         record.setUpdatedAt(LocalDateTime.now());
@@ -166,6 +280,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
 
     private void syncStatusToContent(ReimbursementRecord record) {
         try {
+            // 主表 status 用于列表快速筛选，content 中也同步一份，保证详情回显一致。
             ReimbursementDto dto = objectMapper.readValue(record.getContent(), ReimbursementDto.class);
             dto.setStatus(record.getStatus());
             record.setContent(objectMapper.writeValueAsString(dto));
@@ -176,11 +291,13 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     }
 
     private String generateDocumentNo() {
+        // 单号格式：REIM + 日期 + 毫秒尾号，便于演示环境快速生成可读编号。
         return "REIM" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
                 + String.format("%04d", System.currentTimeMillis() % 10000);
     }
 
     private void applyDtoToRecord(ReimbursementDto dto, ReimbursementRecord record) {
+        // 将详情表单中的关键字段冗余到主表，支撑列表查询、排序和统计。
         if (dto.getBasicInfo() != null) {
             record.setTitle(dto.getBasicInfo().getTitle());
             record.setReason(dto.getBasicInfo().getReason());
@@ -199,6 +316,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             record.setStatus(dto.getStatus());
         }
         try {
+            // content 保存完整表单快照，子表仅用于查询扩展和报表统计。
             if (record.getId() != null) {
                 dto.setId(String.valueOf(record.getId()));
             }
@@ -216,6 +334,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
 
     private ReimbursementDto toDto(ReimbursementRecord record) {
         try {
+            // 详情响应以 JSON 快照为主体，再用主表字段覆盖运行态关键信息。
             ReimbursementDto dto = objectMapper.readValue(record.getContent(), ReimbursementDto.class);
             dto.setId(String.valueOf(record.getId()));
             dto.setDocumentNo(record.getDocumentNo());
@@ -234,5 +353,30 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("报销单数据解析失败", e);
         }
+    }
+
+    private ReimbursementRecord getExistingReimbursementRecord(Long id) {
+        ReimbursementRecord record = getById(id);
+        if (record == null) {
+            throw new IllegalArgumentException("报销单不存在");
+        }
+        return record;
+    }
+
+    private ReimbursementDto getExistingReimbursementDto(Long id) {
+        return toDto(getExistingReimbursementRecord(id));
+    }
+
+    private ReimbursementDto.TravelRecord findTravelRecord(ReimbursementDto dto, String recordKey) {
+        if (!StringUtils.hasText(recordKey)) {
+            throw new IllegalArgumentException("补录行程标识不能为空");
+        }
+        if (dto.getTravelRecords() == null) {
+            throw new IllegalArgumentException("补录行程不存在");
+        }
+        return dto.getTravelRecords().stream()
+                .filter(item -> recordKey.equals(item.getId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("补录行程不存在"));
     }
 }

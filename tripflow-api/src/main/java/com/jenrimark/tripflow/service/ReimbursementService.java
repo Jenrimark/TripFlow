@@ -26,6 +26,16 @@ public interface ReimbursementService extends IService<ReimbursementRecord> {
 
     ReimbursementDto update(Long id, ReimbursementDto dto);
 
+    List<ReimbursementDto.TravelRecord> listTravelRecords(Long id);
+
+    ReimbursementDto.TravelRecord getTravelRecord(Long id, String recordKey);
+
+    ReimbursementDto.TravelRecord addTravelRecord(Long id, ReimbursementDto.TravelRecord travelRecord);
+
+    ReimbursementDto.TravelRecord updateTravelRecord(Long id, String recordKey, ReimbursementDto.TravelRecord travelRecord);
+
+    void deleteTravelRecord(Long id, String recordKey);
+
     void delete(Long id);
 
     void submit(Long id);
