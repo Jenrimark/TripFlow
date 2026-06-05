@@ -1,6 +1,8 @@
 package com.jenrimark.tripflow.controller;
 
+import com.jenrimark.tripflow.dto.reimbursement.ReimbursementAllowanceGenerateResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
+import com.jenrimark.tripflow.dto.reimbursement.ReimbursementExpenseSummaryResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementListResult;
 import com.jenrimark.tripflow.service.ReimbursementService;
 import org.springframework.http.HttpStatus;
@@ -39,6 +41,11 @@ public class ReimbursementController {
         return wrap(() -> reimbursementService.getDetail(id));
     }
 
+    @GetMapping("/{id}/expense-summary")
+    public ReimbursementExpenseSummaryResult expenseSummary(@PathVariable Long id) {
+        return wrap(() -> reimbursementService.calculateExpenseSummary(id));
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ReimbursementDto create(@RequestBody ReimbursementDto dto) {
@@ -48,6 +55,14 @@ public class ReimbursementController {
     @PutMapping("/{id}")
     public ReimbursementDto update(@PathVariable Long id, @RequestBody ReimbursementDto dto) {
         return wrap(() -> reimbursementService.update(id, dto));
+    }
+
+    /**
+     * 查询现有的补助行程，自动生成补助信息并落盘
+     * */
+    @PostMapping("/{id}/allowances/generate")
+    public ReimbursementAllowanceGenerateResult generateAllowances(@PathVariable Long id) {
+        return wrap(() -> reimbursementService.generateAllowances(id));
     }
 
     @DeleteMapping("/{id}")

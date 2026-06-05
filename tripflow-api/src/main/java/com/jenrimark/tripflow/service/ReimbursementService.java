@@ -1,7 +1,9 @@
 package com.jenrimark.tripflow.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.jenrimark.tripflow.dto.reimbursement.ReimbursementAllowanceGenerateResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
+import com.jenrimark.tripflow.dto.reimbursement.ReimbursementExpenseSummaryResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementListResult;
 import com.jenrimark.tripflow.entity.ReimbursementRecord;
 
@@ -25,6 +27,10 @@ public interface ReimbursementService extends IService<ReimbursementRecord> {
     ReimbursementDto create(ReimbursementDto dto);
 
     ReimbursementDto update(Long id, ReimbursementDto dto);
+
+    ReimbursementAllowanceGenerateResult generateAllowances(Long id);
+
+    ReimbursementExpenseSummaryResult calculateExpenseSummary(Long id);
 
     List<ReimbursementDto.TravelRecord> listTravelRecords(Long id);
 
