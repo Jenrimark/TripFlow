@@ -5,13 +5,12 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
- * 报销单校验，规则来源：docs/概要设计.md 5.2.2.9 / 5.3
+ * 报销单校验规则。
  */
 @Component
 public class ReimbursementValidator {
@@ -102,15 +101,26 @@ public class ReimbursementValidator {
         if (dto.getTravelRecords() == null) {
             return;
         }
+
         LocalDate today = LocalDate.now();
-        Set<String> overlapKeys = new HashSet<>();
+        List<TravelDateRange> ranges = new ArrayList<>();
+
         for (ReimbursementDto.TravelRecord record : dto.getTravelRecords()) {
-            if (!StringUtils.hasText(record.getReimburserId())) {
-                errors.add("请选择出行人");
+            if (record == null) {
+                errors.add("补录行程不能为空");
                 return;
             }
-            if (!StringUtils.hasText(record.getDepartureCityId()) || !StringUtils.hasText(record.getArrivalCityId())) {
-                errors.add("请选择出发城市和到达城市");
+            if (!StringUtils.hasText(record.getReimburserId())
+                    || !StringUtils.hasText(record.getReimburserName())
+                    || !StringUtils.hasText(record.getReimburserNo())) {
+                errors.add("请选择完整的出行人信息");
+                return;
+            }
+            if (!StringUtils.hasText(record.getDepartureCityId())
+                    || !StringUtils.hasText(record.getDepartureCityName())
+                    || !StringUtils.hasText(record.getArrivalCityId())
+                    || !StringUtils.hasText(record.getArrivalCityName())) {
+                errors.add("请选择完整的出发城市和到达城市");
                 return;
             }
             if (record.getDepartureCityId().equals(record.getArrivalCityId())) {
@@ -121,8 +131,21 @@ public class ReimbursementValidator {
                 errors.add("请选择出发日期和到达日期");
                 return;
             }
-            LocalDate departure = LocalDate.parse(record.getDepartureDate());
-            LocalDate arrival = LocalDate.parse(record.getArrivalDate());
+            if (!StringUtils.hasText(record.getDescription())) {
+                errors.add("请输入行程说明");
+                return;
+            }
+
+            LocalDate departure;
+            LocalDate arrival;
+            try {
+                departure = LocalDate.parse(record.getDepartureDate());
+                arrival = LocalDate.parse(record.getArrivalDate());
+            } catch (DateTimeParseException e) {
+                errors.add("行程日期格式不正确");
+                return;
+            }
+
             if (arrival.isBefore(departure)) {
                 errors.add("到达日期不能早于出发日期");
                 return;
@@ -131,16 +154,31 @@ public class ReimbursementValidator {
                 errors.add("行程日期不能晚于当前日期");
                 return;
             }
-            if (StringUtils.hasText(record.getDescription()) && record.getDescription().length() > 500) {
+            if (record.getDescription().length() > 500) {
                 errors.add("行程说明不能超过500个字符");
                 return;
             }
-            String key = record.getReimburserId() + "|" + record.getDepartureDate() + "|" + record.getArrivalDate();
-            if (!overlapKeys.add(key)) {
-                errors.add("存在完全重叠的行程记录，请检查");
-                return;
+
+            for (TravelDateRange existing : ranges) {
+                if (!existing.reimburserId().equals(record.getReimburserId())) {
+                    continue;
+                }
+                if (isDateRangeOverlapping(existing.departureDate(), existing.arrivalDate(), departure, arrival)) {
+                    errors.add("同一出行人在所选日期范围内已存在补录行程，不可重复");
+                    return;
+                }
             }
+
+            ranges.add(new TravelDateRange(record.getReimburserId(), departure, arrival));
         }
+    }
+
+    private boolean isDateRangeOverlapping(
+            LocalDate existingDeparture,
+            LocalDate existingArrival,
+            LocalDate currentDeparture,
+            LocalDate currentArrival) {
+        return !currentDeparture.isAfter(existingArrival) && !currentArrival.isBefore(existingDeparture);
     }
 
     private void validateAllowances(ReimbursementDto dto, List<String> errors) {
@@ -175,5 +213,8 @@ public class ReimbursementValidator {
                 }
             }
         }
+    }
+
+    private record TravelDateRange(String reimburserId, LocalDate departureDate, LocalDate arrivalDate) {
     }
 }
