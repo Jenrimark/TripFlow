@@ -57,7 +57,7 @@ public class ReimbursementController {
     }
 
     /**
-     * 新增报销单。
+     * 新增报销单。（状态默认为0：草稿）
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

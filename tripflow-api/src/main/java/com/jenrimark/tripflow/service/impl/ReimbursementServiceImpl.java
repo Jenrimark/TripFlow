@@ -50,6 +50,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     private final ReimbursementAllowanceCalendarMapper calendarMapper;
     private final ReimbursementCostAllocationMapper costAllocationMapper;
 
+    /**
+     * 注入报销单服务实现依赖的序列化、校验和数据访问组件。
+     */
     public ReimbursementServiceImpl(
             ObjectMapper objectMapper,
             ReimbursementValidator validator,
@@ -67,6 +70,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         this.costAllocationMapper = costAllocationMapper;
     }
 
+    /**
+     * 按条件分页查询报销单列表。
+     */
     @Override
     public ReimbursementListResult list(
             String documentNo,
@@ -112,6 +118,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return result;
     }
 
+    /**
+     * 查询指定报销单详情，并将存储内容转换为前端使用的 DTO。
+     */
     @Override
     public ReimbursementDto getDetail(Long id) {
         ReimbursementRecord record = getById(id);
@@ -121,70 +130,102 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return toDto(record);
     }
 
+    /**
+     * 新增报销单主表和全部子表数据。（初始化报销单）
+     */
     @Override
     @Transactional
     public ReimbursementDto create(ReimbursementDto dto) {
+        // 校验报销单数据（保存级别）
         validator.validateForSave(dto);
-
+        // 创建主表对象
         ReimbursementRecord record = new ReimbursementRecord();
+        // 生成报销单号
         record.setDocumentNo(generateDocumentNo());
+        // 设置状态码（前端没传就默认为0（草稿））
         record.setStatus(dto.getStatus() != null ? dto.getStatus() : 0);
+        // 设置创建时间和更新时间
         record.setCreatedAt(LocalDateTime.now());
         record.setUpdatedAt(LocalDateTime.now());
+        // 把前端传来的dto数据映射到主表对象record
         applyDtoToRecord(dto, record);
+        // 保存到主表reimbursement
         save(record);
+        // 保存子表数据（补录行程，补助信息，补助日历，费用分摊）
         childRecordService.replaceChildRecords(record.getId(), dto);
         return toDto(record);
     }
 
+    /**
+     * 更新报销单主表并整体重建关联子表数据。
+     */
     @Override
     @Transactional
     public ReimbursementDto update(Long id, ReimbursementDto dto) {
+        // 根据报销单id查询报销单
         ReimbursementRecord record = getById(id);
         if (record == null) {
             throw new IllegalArgumentException("报销单不存在");
         }
 
+        // 校验报销单数据
         validator.validateForSave(dto);
         record.setUpdatedAt(LocalDateTime.now());
         applyDtoToRecord(dto, record);
+        // 更新主表数据
         updateById(record);
+        // 更新子表数据
         childRecordService.replaceChildRecords(id, dto);
         return toDto(record);
     }
 
+    /**
+     * 只更新报销单备注信息，并同步更新 content JSON 中的备注字段。
+     */
     @Override
-    @Transactional
     public ReimbursementDto updateRemark(Long id, ReimbursementRemarkRequest request) {
+        // 根据报销单id查询主表数据
         ReimbursementRecord record = getExistingReimbursementRecord(id);
         ReimbursementDto dto = toDto(record);
 
+        // 修改dto中的备注信息
         dto.setRemark(request != null ? request.getRemark() : null);
+        // 校验备注
         validator.validateRemark(dto.getRemark());
 
         record.setUpdatedAt(LocalDateTime.now());
         applyDtoToRecord(dto, record);
+        // 更新主表数据
         updateById(record);
         return toDto(record);
     }
 
+    /**
+     * 清空指定报销单的备注信息。
+     */
     @Override
-    @Transactional
     public ReimbursementDto clearRemark(Long id) {
         return updateRemark(id, null);
     }
 
+    /**
+     * 根据已有补录行程自动生成补助信息并落盘。
+     */
     @Override
     @Transactional
     public ReimbursementAllowanceGenerateResult generateAllowances(Long id) {
+        // 根据报销单id查询主表数据
         ReimbursementRecord record = getExistingReimbursementRecord(id);
         ReimbursementDto dto = toDto(record);
 
+        // 判断补录行程是否为空
         if (dto.getTravelRecords() == null || dto.getTravelRecords().isEmpty()) {
             throw new IllegalArgumentException("请先填写补录行程");
         }
 
+        // 计算补助信息
         dto.setAllowances(allowanceGenerationService.generate(dto.getTravelRecords()));
+        // 计算四个汇总字段
         dto.setTotalAllowanceAmount(sumAllowanceAmount(dto.getAllowances()));
         dto.setTotalMealAmount(sumMealAmount(dto.getAllowances()));
         dto.setTotalTransportAmount(sumTransportAmount(dto.getAllowances()));
@@ -192,11 +233,16 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
 
         record.setUpdatedAt(LocalDateTime.now());
         applyDtoToRecord(dto, record);
+        // 更新主表数据
         updateById(record);
+        // 重建子表数据
         childRecordService.replaceChildRecords(id, dto);
         return buildAllowanceGenerateResult(dto);
     }
 
+    /**
+     * 汇总指定报销单的补助总金额、餐补、交通补助和通讯补助。
+     */
     @Override
     @Transactional(readOnly = true)
     public ReimbursementExpenseSummaryResult calculateExpenseSummary(Long id) {
@@ -230,6 +276,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return result;
     }
 
+    /**
+     * 查询指定报销单下的全部费用归属及分摊记录。
+     */
     @Override
     @Transactional(readOnly = true)
     public List<ReimbursementDto.CostAllocation> listCostAllocations(Long id) {
@@ -244,6 +293,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .toList();
     }
 
+    /**
+     * 按当前分摊行数对比例和金额做均摊，并将结果回写数据库。
+     */
     @Override
     @Transactional
     public List<ReimbursementDto.CostAllocation> evenlyDistributeCostAllocations(Long id) {
@@ -273,6 +325,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return dto.getCostAllocations();
     }
 
+    /**
+     * 为指定报销单新增一条初始化的分摊记录。
+     */
     @Override
     @Transactional
     public ReimbursementDto.CostAllocation addCostAllocation(Long id, ReimbursementDto.CostAllocation costAllocation) {
@@ -293,6 +348,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return newAllocation;
     }
 
+    /**
+     * 修改指定报销单中的某条分摊记录。
+     */
     @Override
     @Transactional
     public ReimbursementDto.CostAllocation updateCostAllocation(
@@ -325,6 +383,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return existing;
     }
 
+    /**
+     * 删除指定报销单中的某条分摊记录，并校验至少保留一条数据。
+     */
     @Override
     @Transactional
     public void deleteCostAllocation(Long id, String allocationKey) {
@@ -348,6 +409,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         childRecordService.replaceChildRecords(id, dto);
     }
 
+    /**
+     * 查询指定报销单下的全部补录行程。
+     */
     @Override
     @Transactional
     public List<ReimbursementDto.TravelRecord> listTravelRecords(Long id) {
@@ -355,6 +419,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return dto.getTravelRecords() != null ? dto.getTravelRecords() : List.of();
     }
 
+    /**
+     * 查询指定报销单中的单条补录行程。
+     */
     @Override
     @Transactional
     public ReimbursementDto.TravelRecord getTravelRecord(Long id, String recordKey) {
@@ -362,6 +429,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return findTravelRecord(dto, recordKey);
     }
 
+    /**
+     * 为指定报销单新增一条补录行程。
+     */
     @Override
     @Transactional
     public ReimbursementDto.TravelRecord addTravelRecord(Long id, ReimbursementDto.TravelRecord travelRecord) {
@@ -390,6 +460,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return travelRecord;
     }
 
+    /**
+     * 修改指定报销单中的某条补录行程。
+     */
     @Override
     @Transactional
     public ReimbursementDto.TravelRecord updateTravelRecord(
@@ -425,6 +498,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return existing;
     }
 
+    /**
+     * 删除指定补录行程，并同步清理关联补助信息。
+     */
     @Override
     @Transactional
     public void deleteTravelRecord(Long id, String recordKey) {
@@ -449,6 +525,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         childRecordService.replaceChildRecords(id, dto);
     }
 
+    /**
+     * 删除报销单主表及其所有关联子表数据。
+     */
     @Override
     @Transactional
     public void delete(Long id) {
@@ -459,6 +538,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         removeById(id);
     }
 
+    /**
+     * 提交报销单，并同步更新 content JSON 中的状态值。
+     */
     @Override
     @Transactional
     public void submit(Long id) {
@@ -474,6 +556,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         syncStatusToContent(record);
     }
 
+    /**
+     * 作废报销单，并同步更新 content JSON 中的状态值。
+     */
     @Override
     @Transactional
     public void voidDocument(Long id) {
@@ -487,6 +572,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         syncStatusToContent(record);
     }
 
+    /**
+     * 将主表中的状态值同步回 content JSON，保持两份数据一致。
+     */
     private void syncStatusToContent(ReimbursementRecord record) {
         try {
             ReimbursementDto dto = objectMapper.readValue(record.getContent(), ReimbursementDto.class);
@@ -498,11 +586,17 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         }
     }
 
+    /**
+     * 生成新的报销单号。
+     */
     private String generateDocumentNo() {
         return "REIM" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
                 + String.format("%04d", System.currentTimeMillis() % 10000);
     }
 
+    /**
+     * 将报销单 DTO 中的字段映射回主表实体，并刷新 content JSON。
+     */
     private void applyDtoToRecord(ReimbursementDto dto, ReimbursementRecord record) {
         if (dto.getBasicInfo() != null) {
             record.setTitle(dto.getBasicInfo().getTitle());
@@ -537,6 +631,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         }
     }
 
+    /**
+     * 将主表记录和 content JSON 反序列化为统一的报销单 DTO。
+     */
     private ReimbursementDto toDto(ReimbursementRecord record) {
         try {
             ReimbursementDto dto = objectMapper.readValue(record.getContent(), ReimbursementDto.class);
@@ -559,6 +656,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         }
     }
 
+    /**
+     * 获取指定报销单主表记录，不存在时直接抛出异常。
+     */
     private ReimbursementRecord getExistingReimbursementRecord(Long id) {
         ReimbursementRecord record = getById(id);
         if (record == null) {
@@ -567,10 +667,16 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return record;
     }
 
+    /**
+     * 获取指定报销单的 DTO 形式数据。
+     */
     private ReimbursementDto getExistingReimbursementDto(Long id) {
         return toDto(getExistingReimbursementRecord(id));
     }
 
+    /**
+     * 从当前报销单中按标识查找指定补录行程。
+     */
     private ReimbursementDto.TravelRecord findTravelRecord(ReimbursementDto dto, String recordKey) {
         if (!StringUtils.hasText(recordKey)) {
             throw new IllegalArgumentException("补录行程标识不能为空");
@@ -584,6 +690,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .orElseThrow(() -> new IllegalArgumentException("补录行程不存在"));
     }
 
+    /**
+     * 从当前报销单中按标识查找指定分摊记录。
+     */
     private ReimbursementDto.CostAllocation findCostAllocation(ReimbursementDto dto, String allocationKey) {
         if (!StringUtils.hasText(allocationKey)) {
             throw new IllegalArgumentException("分摊信息标识不能为空");
@@ -597,6 +706,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .orElseThrow(() -> new IllegalArgumentException("分摊信息不存在"));
     }
 
+    /**
+     * 汇总补助列表中的补助总金额。
+     */
     private double sumAllowanceAmount(List<ReimbursementDto.AllowanceInfo> allowances) {
         if (allowances == null) {
             return 0D;
@@ -606,6 +718,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .sum();
     }
 
+    /**
+     * 汇总已落库补助主表中的补助总金额。
+     */
     private double sumPersistedAllowanceAmount(List<ReimbursementAllowance> allowances) {
         if (allowances == null) {
             return 0D;
@@ -617,6 +732,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .sum();
     }
 
+    /**
+     * 汇总 DTO 中已勾选的餐费补助金额。
+     */
     private double sumMealAmount(List<ReimbursementDto.AllowanceInfo> allowances) {
         return allowanceCalendarStream(allowances)
                 .mapToDouble(item -> Boolean.TRUE.equals(item.getMealSelected()) && item.getMealAmount() != null
@@ -624,6 +742,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .sum();
     }
 
+    /**
+     * 汇总 DTO 中已勾选的交通补助金额。
+     */
     private double sumTransportAmount(List<ReimbursementDto.AllowanceInfo> allowances) {
         return allowanceCalendarStream(allowances)
                 .mapToDouble(item -> Boolean.TRUE.equals(item.getTransportSelected()) && item.getTransportAmount() != null
@@ -631,6 +752,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .sum();
     }
 
+    /**
+     * 汇总 DTO 中已勾选的通讯补助金额。
+     */
     private double sumCommunicationAmount(List<ReimbursementDto.AllowanceInfo> allowances) {
         return allowanceCalendarStream(allowances)
                 .mapToDouble(item -> Boolean.TRUE.equals(item.getCommunicationSelected()) && item.getCommunicationAmount() != null
@@ -638,6 +762,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .sum();
     }
 
+    /**
+     * 将补助列表中的日历明细打平成统一流，方便做金额汇总。
+     */
     private Stream<ReimbursementDto.AllowanceCalendarItem> allowanceCalendarStream(
             List<ReimbursementDto.AllowanceInfo> allowances) {
         if (allowances == null) {
@@ -647,6 +774,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .flatMap(item -> item.getCalendar() != null ? item.getCalendar().stream() : Stream.empty());
     }
 
+    /**
+     * 汇总已落库补助日历中已勾选的餐费金额。
+     */
     private double sumSelectedMealAmount(List<ReimbursementAllowanceCalendar> calendars) {
         if (calendars == null) {
             return 0D;
@@ -657,6 +787,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .sum();
     }
 
+    /**
+     * 汇总已落库补助日历中已勾选的交通补助金额。
+     */
     private double sumSelectedTransportAmount(List<ReimbursementAllowanceCalendar> calendars) {
         if (calendars == null) {
             return 0D;
@@ -667,6 +800,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .sum();
     }
 
+    /**
+     * 汇总已落库补助日历中已勾选的通讯补助金额。
+     */
     private double sumSelectedCommunicationAmount(List<ReimbursementAllowanceCalendar> calendars) {
         if (calendars == null) {
             return 0D;
@@ -677,6 +813,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .sum();
     }
 
+    /**
+     * 将生成后的补助列表和费用汇总字段组装成接口返回结果。
+     */
     private ReimbursementAllowanceGenerateResult buildAllowanceGenerateResult(ReimbursementDto dto) {
         ReimbursementAllowanceGenerateResult result = new ReimbursementAllowanceGenerateResult();
         result.setAllowances(dto.getAllowances() != null ? dto.getAllowances() : List.of());
@@ -688,6 +827,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return result;
     }
 
+    /**
+     * 将费用分摊实体转换为前端使用的 DTO。
+     */
     private ReimbursementDto.CostAllocation toCostAllocationDto(ReimbursementCostAllocation entity) {
         ReimbursementDto.CostAllocation dto = new ReimbursementDto.CostAllocation();
         dto.setId(entity.getAllocationKey());
@@ -702,6 +844,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return dto;
     }
 
+    /**
+     * 按分摊行数计算均摊后的比例和金额，差值放在首行。
+     */
     private List<EvenAllocationItem> calculateEvenAllocations(double totalAmount, int count) {
         List<EvenAllocationItem> results = new ArrayList<>();
         if (count <= 0) {
@@ -730,12 +875,18 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return results;
     }
 
+    /**
+     * 使用银行家舍入规则对数值按指定精度进行四舍六入五成双处理。
+     */
     private double roundHalfEven(double value, int scale) {
         return BigDecimal.valueOf(value)
                 .setScale(scale, RoundingMode.HALF_EVEN)
                 .doubleValue();
     }
 
+    /**
+     * 创建一条用于初始化展示的空白分摊记录。
+     */
     private ReimbursementDto.CostAllocation createInitialCostAllocation(ReimbursementDto.CostAllocation source) {
         ReimbursementDto.CostAllocation dto = new ReimbursementDto.CostAllocation();
         if (source != null && StringUtils.hasText(source.getId())) {
@@ -754,19 +905,31 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return dto;
     }
 
+    /**
+     * 均摊结果项，保存单行分摊比例和金额。
+     */
     private static class EvenAllocationItem {
         private final double ratio;
         private final double amount;
 
+        /**
+         * 构造单条均摊结果。
+         */
         private EvenAllocationItem(double ratio, double amount) {
             this.ratio = ratio;
             this.amount = amount;
         }
 
+        /**
+         * 返回当前结果项的分摊比例。
+         */
         public double getRatio() {
             return ratio;
         }
 
+        /**
+         * 返回当前结果项的分摊金额。
+         */
         public double getAmount() {
             return amount;
         }

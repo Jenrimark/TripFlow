@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-
+/**
+ * 查询主数据
+ * */
 @RestController
 @RequestMapping("/master")
 public class MasterDataController {
