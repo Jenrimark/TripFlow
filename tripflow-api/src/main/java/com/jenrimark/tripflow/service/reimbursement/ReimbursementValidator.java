@@ -29,6 +29,12 @@ public class ReimbursementValidator {
         }
     }
 
+    public void validateRemark(String remark) {
+        if (remark != null && remark.length() > 1000) {
+            throw new IllegalArgumentException("备注信息不能超过1000个字符");
+        }
+    }
+
     private List<String> collectErrors(ReimbursementDto dto, boolean submit) {
         List<String> errors = new ArrayList<>();
         if (dto == null) {
@@ -77,22 +83,7 @@ public class ReimbursementValidator {
 
         validateTravelRecords(dto, errors);
         validateAllowances(dto, errors);
-
-        if (submit && dto.getCostAllocations() != null && !dto.getCostAllocations().isEmpty()) {
-            double ratioSum = dto.getCostAllocations().stream()
-                    .mapToDouble(a -> a.getRatio() != null ? a.getRatio() : 0)
-                    .sum();
-            if (Math.abs(ratioSum - 1.0) > 0.0001) {
-                errors.add("分摊比例合计必须为100%");
-            }
-            double totalAllowance = dto.getTotalAllowanceAmount() != null ? dto.getTotalAllowanceAmount() : 0;
-            double allocationSum = dto.getCostAllocations().stream()
-                    .mapToDouble(a -> a.getAmount() != null ? a.getAmount() : 0)
-                    .sum();
-            if (Math.abs(allocationSum - totalAllowance) > 0.01) {
-                errors.add("分摊金额合计必须等于补助总金额");
-            }
-        }
+        validateCostAllocations(dto, errors);
 
         return errors;
     }
@@ -212,6 +203,63 @@ public class ReimbursementValidator {
                     return;
                 }
             }
+        }
+    }
+
+    private void validateCostAllocations(ReimbursementDto dto, List<String> errors) {
+        if (dto.getCostAllocations() == null || dto.getCostAllocations().isEmpty()) {
+            return;
+        }
+
+        for (ReimbursementDto.CostAllocation allocation : dto.getCostAllocations()) {
+            if (allocation == null) {
+                errors.add("分摊信息不能为空");
+                return;
+            }
+            if (!StringUtils.hasText(allocation.getCompanyId())
+                    || !StringUtils.hasText(allocation.getCompanyName())
+                    || !StringUtils.hasText(allocation.getCompanyNo())) {
+                errors.add("请选择完整的归属公司信息");
+                return;
+            }
+            if (!StringUtils.hasText(allocation.getProjectId())
+                    || !StringUtils.hasText(allocation.getProjectName())
+                    || !StringUtils.hasText(allocation.getProjectNo())) {
+                errors.add("请选择完整的归属项目信息");
+                return;
+            }
+            if (allocation.getRatio() == null) {
+                errors.add("请填写分摊比例");
+                return;
+            }
+            if (allocation.getAmount() == null) {
+                errors.add("请填写分摊金额");
+                return;
+            }
+            if (allocation.getRatio() < 0 || allocation.getRatio() > 1) {
+                errors.add("分摊比例必须在0到1之间");
+                return;
+            }
+            if (allocation.getAmount() < 0) {
+                errors.add("分摊金额不能小于0");
+                return;
+            }
+        }
+
+        double ratioSum = dto.getCostAllocations().stream()
+                .mapToDouble(a -> a.getRatio() != null ? a.getRatio() : 0D)
+                .sum();
+        if (Math.abs(ratioSum - 1.0) > 0.0001) {
+            errors.add("分摊比例合计必须为100%");
+            return;
+        }
+
+        double totalAllowance = dto.getTotalAllowanceAmount() != null ? dto.getTotalAllowanceAmount() : 0D;
+        double allocationSum = dto.getCostAllocations().stream()
+                .mapToDouble(a -> a.getAmount() != null ? a.getAmount() : 0D)
+                .sum();
+        if (Math.abs(allocationSum - totalAllowance) > 0.01) {
+            errors.add("分摊金额合计必须等于补助总金额");
         }
     }
 

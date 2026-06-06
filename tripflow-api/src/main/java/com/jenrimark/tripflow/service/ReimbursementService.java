@@ -5,6 +5,7 @@ import com.jenrimark.tripflow.dto.reimbursement.ReimbursementAllowanceGenerateRe
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementExpenseSummaryResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementListResult;
+import com.jenrimark.tripflow.dto.reimbursement.ReimbursementRemarkRequest;
 import com.jenrimark.tripflow.entity.ReimbursementRecord;
 
 import java.util.List;
@@ -28,9 +29,26 @@ public interface ReimbursementService extends IService<ReimbursementRecord> {
 
     ReimbursementDto update(Long id, ReimbursementDto dto);
 
+    ReimbursementDto updateRemark(Long id, ReimbursementRemarkRequest request);
+
+    ReimbursementDto clearRemark(Long id);
+
     ReimbursementAllowanceGenerateResult generateAllowances(Long id);
 
     ReimbursementExpenseSummaryResult calculateExpenseSummary(Long id);
+
+    List<ReimbursementDto.CostAllocation> listCostAllocations(Long id);
+
+    List<ReimbursementDto.CostAllocation> evenlyDistributeCostAllocations(Long id);
+
+    ReimbursementDto.CostAllocation addCostAllocation(Long id, ReimbursementDto.CostAllocation costAllocation);
+
+    ReimbursementDto.CostAllocation updateCostAllocation(
+            Long id,
+            String allocationKey,
+            ReimbursementDto.CostAllocation costAllocation);
+
+    void deleteCostAllocation(Long id, String allocationKey);
 
     List<ReimbursementDto.TravelRecord> listTravelRecords(Long id);
 

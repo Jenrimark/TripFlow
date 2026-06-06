@@ -4,6 +4,7 @@ import com.jenrimark.tripflow.dto.reimbursement.ReimbursementAllowanceGenerateRe
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementExpenseSummaryResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementListResult;
+import com.jenrimark.tripflow.dto.reimbursement.ReimbursementRemarkRequest;
 import com.jenrimark.tripflow.service.ReimbursementService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +22,9 @@ public class ReimbursementController {
         this.reimbursementService = reimbursementService;
     }
 
+    /**
+     * 查询报销单列表。
+     */
     @GetMapping
     public ReimbursementListResult list(
             @RequestParam(required = false) String documentNo,
@@ -36,35 +40,42 @@ public class ReimbursementController {
                 documentNo, title, reason, companyIds, departmentIds, reimburserIds, businessTypeIds, page, pageSize);
     }
 
+    /**
+     * 查询指定报销单详情。
+     */
     @GetMapping("/{id}")
     public ReimbursementDto detail(@PathVariable Long id) {
         return wrap(() -> reimbursementService.getDetail(id));
     }
 
+    /**
+     * 计算指定报销单的费用合计。
+     */
     @GetMapping("/{id}/expense-summary")
     public ReimbursementExpenseSummaryResult expenseSummary(@PathVariable Long id) {
         return wrap(() -> reimbursementService.calculateExpenseSummary(id));
     }
 
+    /**
+     * 新增报销单。
+     */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ReimbursementDto create(@RequestBody ReimbursementDto dto) {
         return wrap(() -> reimbursementService.create(dto));
     }
 
+    /**
+     * 修改报销单。
+     */
     @PutMapping("/{id}")
     public ReimbursementDto update(@PathVariable Long id, @RequestBody ReimbursementDto dto) {
         return wrap(() -> reimbursementService.update(id, dto));
     }
 
     /**
-     * 查询现有的补助行程，自动生成补助信息并落盘
-     * */
-    @PostMapping("/{id}/allowances/generate")
-    public ReimbursementAllowanceGenerateResult generateAllowances(@PathVariable Long id) {
-        return wrap(() -> reimbursementService.generateAllowances(id));
-    }
-
+     * 删除指定报销单。
+     */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
@@ -74,6 +85,9 @@ public class ReimbursementController {
         });
     }
 
+    /**
+     * 提交指定报销单。
+     */
     @PostMapping("/{id}/submit")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void submit(@PathVariable Long id) {
@@ -83,6 +97,9 @@ public class ReimbursementController {
         });
     }
 
+    /**
+     * 作废指定报销单。
+     */
     @PostMapping("/{id}/void")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void voidDocument(@PathVariable Long id) {
@@ -91,6 +108,32 @@ public class ReimbursementController {
             return null;
         });
     }
+
+    /**
+     * 修改备注
+     * */
+    @PutMapping("/{id}/remark")
+    public ReimbursementDto updateRemark(@PathVariable Long id, @RequestBody ReimbursementRemarkRequest request) {
+        return wrap(() -> reimbursementService.updateRemark(id, request));
+    }
+
+    /**
+     * 清空备注
+     * */
+    @DeleteMapping("/{id}/remark")
+    public ReimbursementDto clearRemark(@PathVariable Long id) {
+        return wrap(() -> reimbursementService.clearRemark(id));
+    }
+
+
+    /**
+     * 根据补录行程自动生成补助并落盘。
+     */
+    @PostMapping("/{id}/allowances/generate")
+    public ReimbursementAllowanceGenerateResult generateAllowances(@PathVariable Long id) {
+        return wrap(() -> reimbursementService.generateAllowances(id));
+    }
+
 
     private <T> T wrap(ServiceCall<T> call) {
         try {
