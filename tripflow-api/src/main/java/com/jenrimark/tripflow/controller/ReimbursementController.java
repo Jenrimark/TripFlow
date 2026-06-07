@@ -5,6 +5,7 @@ import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementExpenseSummaryResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementListResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementRemarkRequest;
+import com.jenrimark.tripflow.exception.ReimbursementVersionConflictException;
 import com.jenrimark.tripflow.service.ReimbursementService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -78,9 +79,9 @@ public class ReimbursementController {
      */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
+    public void delete(@PathVariable Long id, @RequestParam Long version) {
         wrap(() -> {
-            reimbursementService.delete(id);
+            reimbursementService.delete(id, version);
             return null;
         });
     }
@@ -90,9 +91,9 @@ public class ReimbursementController {
      */
     @PostMapping("/{id}/submit")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void submit(@PathVariable Long id) {
+    public void submit(@PathVariable Long id, @RequestParam Long version) {
         wrap(() -> {
-            reimbursementService.submit(id);
+            reimbursementService.submit(id, version);
             return null;
         });
     }
@@ -102,9 +103,9 @@ public class ReimbursementController {
      */
     @PostMapping("/{id}/void")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void voidDocument(@PathVariable Long id) {
+    public void voidDocument(@PathVariable Long id, @RequestParam Long version) {
         wrap(() -> {
-            reimbursementService.voidDocument(id);
+            reimbursementService.voidDocument(id, version);
             return null;
         });
     }
@@ -121,8 +122,8 @@ public class ReimbursementController {
      * 清空备注
      * */
     @DeleteMapping("/{id}/remark")
-    public ReimbursementDto clearRemark(@PathVariable Long id) {
-        return wrap(() -> reimbursementService.clearRemark(id));
+    public ReimbursementDto clearRemark(@PathVariable Long id, @RequestParam Long version) {
+        return wrap(() -> reimbursementService.clearRemark(id, version));
     }
 
 
@@ -130,14 +131,18 @@ public class ReimbursementController {
      * 根据补录行程自动生成补助并落盘。
      */
     @PostMapping("/{id}/allowances/generate")
-    public ReimbursementAllowanceGenerateResult generateAllowances(@PathVariable Long id) {
-        return wrap(() -> reimbursementService.generateAllowances(id));
+    public ReimbursementAllowanceGenerateResult generateAllowances(
+            @PathVariable Long id,
+            @RequestParam Long version) {
+        return wrap(() -> reimbursementService.generateAllowances(id, version));
     }
 
 
     private <T> T wrap(ServiceCall<T> call) {
         try {
             return call.run();
+        } catch (ReimbursementVersionConflictException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && e.getMessage().contains("不存在")) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());

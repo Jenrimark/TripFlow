@@ -1,6 +1,7 @@
 package com.jenrimark.tripflow.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -10,6 +11,7 @@ import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementExpenseSummaryResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementListResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementRemarkRequest;
+import com.jenrimark.tripflow.exception.ReimbursementVersionConflictException;
 import com.jenrimark.tripflow.entity.ReimbursementAllowance;
 import com.jenrimark.tripflow.entity.ReimbursementAllowanceCalendar;
 import com.jenrimark.tripflow.entity.ReimbursementCostAllocation;
@@ -172,6 +174,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         record.setDocumentNo(generateDocumentNo());
         // 设置状态码（前端没传就默认为0（草稿））
         record.setStatus(dto.getStatus() != null ? dto.getStatus() : 0);
+        record.setVersion(0L);
         // 设置创建时间和更新时间
         record.setCreatedAt(LocalDateTime.now());
         record.setUpdatedAt(LocalDateTime.now());
@@ -198,10 +201,11 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
 
         // 校验报销单数据
         validator.validateForSave(dto);
+        assertVersionMatches(record, dto.getVersion());
         record.setUpdatedAt(LocalDateTime.now());
         applyDtoToRecord(dto, record);
         // 更新主表数据
-        updateById(record);
+        updateRecordWithVersionCheck(record, dto.getVersion());
         // 更新子表数据
         childRecordService.replaceChildRecords(id, dto);
         return rebuildSnapshotAndLoadDetail(id);
@@ -211,11 +215,14 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      * 只更新报销单备注信息，并同步更新 content JSON 中的备注字段。
      */
     @Override
+    @Transactional
     public ReimbursementDto updateRemark(Long id, ReimbursementRemarkRequest request) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
         String remark = request != null ? request.getRemark() : null;
         // 校验备注数据
         validator.validateRemark(remark);
+        Long version = request != null ? request.getVersion() : null;
+        assertVersionMatches(record, version);
 
         // 更新备注
         record.setRemark(remark);
@@ -224,7 +231,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         ReimbursementDto snapshot = toListDto(record);
         record.setContent(writeSnapshot(snapshot, record));
         // 更新数据库
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         return rebuildSnapshotAndLoadDetail(id);
     }
 
@@ -232,13 +239,15 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      * 清空指定报销单的备注信息。
      */
     @Override
-    public ReimbursementDto clearRemark(Long id) {
+    @Transactional
+    public ReimbursementDto clearRemark(Long id, Long version) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
+        assertVersionMatches(record, version);
         record.setRemark(null);
         record.setUpdatedAt(LocalDateTime.now());
         ReimbursementDto snapshot = toListDto(record);
         record.setContent(writeSnapshot(snapshot, record));
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         return rebuildSnapshotAndLoadDetail(id);
     }
 
@@ -247,9 +256,10 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public ReimbursementAllowanceGenerateResult generateAllowances(Long id) {
+    public ReimbursementAllowanceGenerateResult generateAllowances(Long id, Long version) {
         // 根据报销单id查询主表数据
         ReimbursementRecord record = getExistingReimbursementRecord(id);
+        assertVersionMatches(record, version);
         ReimbursementDto dto = toDto(record);
 
         // 判断补录行程是否为空
@@ -268,7 +278,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         record.setUpdatedAt(LocalDateTime.now());
         applyDtoToRecord(dto, record);
         // 更新主表数据
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         // 重建子表数据
         childRecordService.replaceChildRecords(id, dto);
         return buildAllowanceGenerateResult(rebuildSnapshotAndLoadDetail(id));
@@ -332,8 +342,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public List<ReimbursementDto.CostAllocation> evenlyDistributeCostAllocations(Long id) {
+    public List<ReimbursementDto.CostAllocation> evenlyDistributeCostAllocations(Long id, Long version) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
+        assertVersionMatches(record, version);
         List<ReimbursementCostAllocation> allocations = loadCostAllocationEntities(id);
         if (allocations.isEmpty()) {
             throw new IllegalArgumentException("请至少添加一条分摊信息");
@@ -353,7 +364,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         validateCostAllocationListIfComplete(allocations, totalAmount);
         updateCostAllocationEntities(allocations);
         record.setUpdatedAt(LocalDateTime.now());
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         return rebuildSnapshotAndLoadDetail(id).getCostAllocations();
     }
 
@@ -362,8 +373,12 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public ReimbursementDto.CostAllocation addCostAllocation(Long id, ReimbursementDto.CostAllocation costAllocation) {
+    public ReimbursementDto.CostAllocation addCostAllocation(
+            Long id,
+            Long version,
+            ReimbursementDto.CostAllocation costAllocation) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
+        assertVersionMatches(record, version);
         ReimbursementDto.CostAllocation newAllocation = createInitialCostAllocation(costAllocation);
         long existingCount = costAllocationMapper.selectCount(
                 new LambdaQueryWrapper<ReimbursementCostAllocation>()
@@ -388,7 +403,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         updateCostAllocationEntities(allocations);
 
         record.setUpdatedAt(LocalDateTime.now());
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         return findCostAllocation(rebuildSnapshotAndLoadDetail(id), newAllocation.getId());
     }
 
@@ -397,10 +412,11 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public ReimbursementDto.CostAllocation updateCostAllocation(Long id, String allocationKey,
+    public ReimbursementDto.CostAllocation updateCostAllocation(Long id, String allocationKey, Long version,
             ReimbursementDto.CostAllocation costAllocation) {
         // 先确认报销单存在，再读取当前分摊修改请求
         ReimbursementRecord record = getExistingReimbursementRecord(id);
+        assertVersionMatches(record, version);
         if (costAllocation == null) {
             throw new IllegalArgumentException("分摊信息不能为空");
         }
@@ -421,7 +437,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
 
         // 同步主表更新时间，并重建快照后返回最新结果
         record.setUpdatedAt(LocalDateTime.now());
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         return findCostAllocation(rebuildSnapshotAndLoadDetail(id), allocationKey);
     }
 
@@ -430,8 +446,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public void deleteCostAllocation(Long id, String allocationKey) {
+    public void deleteCostAllocation(Long id, String allocationKey, Long version) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
+        assertVersionMatches(record, version);
         // 先查询当前报销单下的全部分摊行，并确认待删除记录存在
         List<ReimbursementCostAllocation> allocations = loadCostAllocationEntities(id);
         if (allocations.size() <= 1) {
@@ -448,7 +465,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         updateCostAllocationEntities(remainingAllocations);
 
         record.setUpdatedAt(LocalDateTime.now());
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         rebuildSnapshot(id);
     }
 
@@ -477,8 +494,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public ReimbursementDto.TravelRecord addTravelRecord(Long id, ReimbursementDto.TravelRecord travelRecord) {
+    public ReimbursementDto.TravelRecord addTravelRecord(Long id, Long version, ReimbursementDto.TravelRecord travelRecord) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
+        assertVersionMatches(record, version);
         if (travelRecord == null) {
             throw new IllegalArgumentException("补录行程不能为空");
         }
@@ -493,7 +511,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
 
         travelRecordMapper.insert(toTravelRecordEntity(id, travelRecord));
         record.setUpdatedAt(LocalDateTime.now());
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         rebuildSnapshot(id);
         return childRecordService.loadTravelRecord(id, travelRecord.getId());
     }
@@ -506,8 +524,10 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     public ReimbursementDto.TravelRecord updateTravelRecord(
             Long id,
             String recordKey,
+            Long version,
             ReimbursementDto.TravelRecord travelRecord) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
+        assertVersionMatches(record, version);
         if (travelRecord == null) {
             throw new IllegalArgumentException("补录行程不能为空");
         }
@@ -524,7 +544,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         applyTravelRecordChange(existing, mergedTravelRecord);
         travelRecordMapper.updateById(existing);
         record.setUpdatedAt(LocalDateTime.now());
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         rebuildSnapshot(id);
         return childRecordService.loadTravelRecord(id, recordKey);
     }
@@ -534,8 +554,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public void deleteTravelRecord(Long id, String recordKey) {
+    public void deleteTravelRecord(Long id, String recordKey, Long version) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
+        assertVersionMatches(record, version);
         getTravelRecordEntity(id, recordKey);
 
         List<ReimbursementAllowance> allowances = allowanceMapper.selectList(
@@ -554,7 +575,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .eq(ReimbursementTravelRecord::getRecordKey, recordKey));
 
         record.setUpdatedAt(LocalDateTime.now());
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         rebuildSnapshot(id);
     }
 
@@ -563,12 +584,16 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public void delete(Long id) {
-        if (getById(id) == null) {
-            throw new IllegalArgumentException("报销单不存在");
-        }
+    public void delete(Long id, Long version) {
+        ReimbursementRecord record = getExistingReimbursementRecord(id);
+        assertVersionMatches(record, version);
         childRecordService.deleteChildRecords(id);
-        removeById(id);
+        int deleted = baseMapper.delete(new LambdaQueryWrapper<ReimbursementRecord>()
+                .eq(ReimbursementRecord::getId, id)
+                .eq(ReimbursementRecord::getVersion, version));
+        if (deleted == 0) {
+            throw new ReimbursementVersionConflictException("报销单已被其他用户修改，请刷新后重试");
+        }
     }
 
     /**
@@ -576,16 +601,17 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public void submit(Long id) {
+    public void submit(Long id, Long version) {
         ReimbursementRecord record = getById(id);
         if (record == null) {
             throw new IllegalArgumentException("报销单不存在");
         }
+        assertVersionMatches(record, version);
         ReimbursementDto dto = toDto(record);
         validator.validateForSubmit(dto);
         record.setStatus(1);
         record.setUpdatedAt(LocalDateTime.now());
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         syncStatusToContent(record);
     }
 
@@ -594,14 +620,15 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public void voidDocument(Long id) {
+    public void voidDocument(Long id, Long version) {
         ReimbursementRecord record = getById(id);
         if (record == null) {
             throw new IllegalArgumentException("报销单不存在");
         }
+        assertVersionMatches(record, version);
         record.setStatus(2);
         record.setUpdatedAt(LocalDateTime.now());
-        updateById(record);
+        updateRecordWithVersionCheck(record, version);
         syncStatusToContent(record);
     }
 
@@ -665,6 +692,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             ReimbursementDto dto = objectMapper.readValue(record.getContent(), ReimbursementDto.class);
             dto.setId(String.valueOf(record.getId()));
             dto.setDocumentNo(record.getDocumentNo());
+            dto.setVersion(record.getVersion());
             dto.setStatus(record.getStatus());
             dto.setRemark(record.getRemark());
             if (record.getCreatedAt() != null) {
@@ -701,15 +729,12 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     }
 
     private ReimbursementDto rebuildSnapshotAndLoadDetail(Long id) {
-        rebuildSnapshot(id);
+        refreshSnapshotContent(id);
         return toDto(getExistingReimbursementRecord(id));
     }
 
     private void rebuildSnapshot(Long id) {
-        ReimbursementRecord record = getExistingReimbursementRecord(id);
-        ReimbursementDto snapshot = toDetailDto(record);
-        record.setContent(writeSnapshot(snapshot, record));
-        updateById(record);
+        refreshSnapshotContent(id);
     }
 
     private ReimbursementDto buildSnapshotDto(ReimbursementRecord record, ReimbursementDto dto) {
@@ -719,6 +744,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         if (StringUtils.hasText(record.getDocumentNo())) {
             dto.setDocumentNo(record.getDocumentNo());
         }
+        dto.setVersion(record.getVersion());
         dto.setStatus(record.getStatus());
         dto.setRemark(record.getRemark());
         if (record.getCreatedAt() != null) {
@@ -744,6 +770,44 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("报销单数据序列化失败", e);
         }
+    }
+
+    /**
+     * 校验前端传入的版本号是否与当前主表版本一致。
+     */
+    private void assertVersionMatches(ReimbursementRecord record, Long expectedVersion) {
+        if (expectedVersion == null) {
+            throw new IllegalArgumentException("version不能为空");
+        }
+        if (record == null || record.getVersion() == null || !record.getVersion().equals(expectedVersion)) {
+            throw new ReimbursementVersionConflictException("报销单已被其他用户修改，请刷新后重试");
+        }
+    }
+
+    /**
+     * 按乐观锁版本更新主表，更新失败时说明当前报销单已被其他用户修改。
+     */
+    private void updateRecordWithVersionCheck(ReimbursementRecord record, Long expectedVersion) {
+        assertVersionMatches(record, expectedVersion);
+        record.setVersion(expectedVersion);
+        int updated = baseMapper.updateById(record);
+        if (updated == 0) {
+            throw new ReimbursementVersionConflictException("报销单已被其他用户修改，请刷新后重试");
+        }
+    }
+
+    /**
+     * 仅刷新主表中的 content 快照，不再额外递增版本号。
+     */
+    private void refreshSnapshotContent(Long id) {
+        ReimbursementRecord record = getExistingReimbursementRecord(id);
+        ReimbursementDto snapshot = toDetailDto(record);
+        String content = writeSnapshot(snapshot, record);
+        baseMapper.update(
+                null,
+                new LambdaUpdateWrapper<ReimbursementRecord>()
+                        .eq(ReimbursementRecord::getId, id)
+                        .set(ReimbursementRecord::getContent, content));
     }
 
     /**

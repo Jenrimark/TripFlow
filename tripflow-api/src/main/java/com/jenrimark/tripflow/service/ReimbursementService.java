@@ -31,38 +31,43 @@ public interface ReimbursementService extends IService<ReimbursementRecord> {
 
     ReimbursementDto updateRemark(Long id, ReimbursementRemarkRequest request);
 
-    ReimbursementDto clearRemark(Long id);
+    ReimbursementDto clearRemark(Long id, Long version);
 
-    ReimbursementAllowanceGenerateResult generateAllowances(Long id);
+    ReimbursementAllowanceGenerateResult generateAllowances(Long id, Long version);
 
     ReimbursementExpenseSummaryResult calculateExpenseSummary(Long id);
 
     List<ReimbursementDto.CostAllocation> listCostAllocations(Long id);
 
-    List<ReimbursementDto.CostAllocation> evenlyDistributeCostAllocations(Long id);
+    List<ReimbursementDto.CostAllocation> evenlyDistributeCostAllocations(Long id, Long version);
 
-    ReimbursementDto.CostAllocation addCostAllocation(Long id, ReimbursementDto.CostAllocation costAllocation);
+    ReimbursementDto.CostAllocation addCostAllocation(Long id, Long version, ReimbursementDto.CostAllocation costAllocation);
 
     ReimbursementDto.CostAllocation updateCostAllocation(
             Long id,
             String allocationKey,
+            Long version,
             ReimbursementDto.CostAllocation costAllocation);
 
-    void deleteCostAllocation(Long id, String allocationKey);
+    void deleteCostAllocation(Long id, String allocationKey, Long version);
 
     List<ReimbursementDto.TravelRecord> listTravelRecords(Long id);
 
     ReimbursementDto.TravelRecord getTravelRecord(Long id, String recordKey);
 
-    ReimbursementDto.TravelRecord addTravelRecord(Long id, ReimbursementDto.TravelRecord travelRecord);
+    ReimbursementDto.TravelRecord addTravelRecord(Long id, Long version, ReimbursementDto.TravelRecord travelRecord);
 
-    ReimbursementDto.TravelRecord updateTravelRecord(Long id, String recordKey, ReimbursementDto.TravelRecord travelRecord);
+    ReimbursementDto.TravelRecord updateTravelRecord(
+            Long id,
+            String recordKey,
+            Long version,
+            ReimbursementDto.TravelRecord travelRecord);
 
-    void deleteTravelRecord(Long id, String recordKey);
+    void deleteTravelRecord(Long id, String recordKey, Long version);
 
-    void delete(Long id);
+    void delete(Long id, Long version);
 
-    void submit(Long id);
+    void submit(Long id, Long version);
 
-    void voidDocument(Long id);
+    void voidDocument(Long id, Long version);
 }

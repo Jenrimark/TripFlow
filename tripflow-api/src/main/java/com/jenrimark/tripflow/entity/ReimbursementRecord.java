@@ -3,6 +3,7 @@ package com.jenrimark.tripflow.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -34,6 +35,10 @@ public class ReimbursementRecord {
     private BigDecimal totalAllowanceAmount;
 
     private String remark;
+
+    /** 乐观锁版本号 */
+    @Version
+    private Long version;
 
     /** 完整报销单 JSON */
     private String content;

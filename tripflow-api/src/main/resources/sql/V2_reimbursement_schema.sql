@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS reimbursement (
     business_type_id       VARCHAR(64)    DEFAULT NULL COMMENT '业务类型ID',
     total_allowance_amount DECIMAL(12, 2) NOT NULL DEFAULT 0 COMMENT '补助总金额',
     remark                 VARCHAR(1000)  DEFAULT NULL COMMENT '备注',
+    version                BIGINT         NOT NULL DEFAULT 0 COMMENT '乐观锁版本号',
     content                JSON           NOT NULL COMMENT '完整报销单JSON',
     created_at             DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at             DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -84,6 +85,7 @@ CREATE TABLE IF NOT EXISTS reimbursement (
 
 -- 兼容已存在的 reimbursement 表（若列已存在可忽略报错）
 -- ALTER TABLE reimbursement ADD COLUMN remark VARCHAR(1000) DEFAULT NULL COMMENT '备注' AFTER total_allowance_amount;
+-- ALTER TABLE reimbursement ADD COLUMN version BIGINT NOT NULL DEFAULT 0 COMMENT '乐观锁版本号' AFTER remark;
 
 -- ============================================================
 -- 三、报销单子表（规范化存储，便于统计与扩展）

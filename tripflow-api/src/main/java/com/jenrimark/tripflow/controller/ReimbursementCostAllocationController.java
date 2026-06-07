@@ -1,6 +1,7 @@
 package com.jenrimark.tripflow.controller;
 
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
+import com.jenrimark.tripflow.exception.ReimbursementVersionConflictException;
 import com.jenrimark.tripflow.service.ReimbursementService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -30,8 +31,10 @@ public class ReimbursementCostAllocationController {
      * 按当前分摊行数自动均摊比例和金额，并回写报销单。
      */
     @PostMapping("/evenly-distribute")
-    public List<ReimbursementDto.CostAllocation> evenlyDistribute(@PathVariable Long id) {
-        return wrap(() -> reimbursementService.evenlyDistributeCostAllocations(id));
+    public List<ReimbursementDto.CostAllocation> evenlyDistribute(
+            @PathVariable Long id,
+            @RequestParam Long version) {
+        return wrap(() -> reimbursementService.evenlyDistributeCostAllocations(id, version));
     }
 
     /**
@@ -41,8 +44,9 @@ public class ReimbursementCostAllocationController {
     @ResponseStatus(HttpStatus.CREATED)
     public ReimbursementDto.CostAllocation create(
             @PathVariable Long id,
+            @RequestParam Long version,
             @RequestBody(required = false) ReimbursementDto.CostAllocation costAllocation) {
-        return wrap(() -> reimbursementService.addCostAllocation(id, costAllocation));
+        return wrap(() -> reimbursementService.addCostAllocation(id, version, costAllocation));
     }
 
     /**
@@ -52,8 +56,9 @@ public class ReimbursementCostAllocationController {
     public ReimbursementDto.CostAllocation update(
             @PathVariable Long id,
             @PathVariable String allocationKey,
+            @RequestParam Long version,
             @RequestBody ReimbursementDto.CostAllocation costAllocation) {
-        return wrap(() -> reimbursementService.updateCostAllocation(id, allocationKey, costAllocation));
+        return wrap(() -> reimbursementService.updateCostAllocation(id, allocationKey, version, costAllocation));
     }
 
     /**
@@ -63,9 +68,10 @@ public class ReimbursementCostAllocationController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(
             @PathVariable Long id,
-            @PathVariable String allocationKey) {
+            @PathVariable String allocationKey,
+            @RequestParam Long version) {
         wrap(() -> {
-            reimbursementService.deleteCostAllocation(id, allocationKey);
+            reimbursementService.deleteCostAllocation(id, allocationKey, version);
             return null;
         });
     }
@@ -73,6 +79,8 @@ public class ReimbursementCostAllocationController {
     private <T> T wrap(ServiceCall<T> call) {
         try {
             return call.run();
+        } catch (ReimbursementVersionConflictException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && e.getMessage().contains("不存在")) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());

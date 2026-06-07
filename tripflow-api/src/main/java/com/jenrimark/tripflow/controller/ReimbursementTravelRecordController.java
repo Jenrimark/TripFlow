@@ -1,6 +1,7 @@
 package com.jenrimark.tripflow.controller;
 
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
+import com.jenrimark.tripflow.exception.ReimbursementVersionConflictException;
 import com.jenrimark.tripflow.service.ReimbursementService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -43,8 +44,9 @@ public class ReimbursementTravelRecordController {
     @ResponseStatus(HttpStatus.CREATED)
     public ReimbursementDto.TravelRecord create(
             @PathVariable Long id,
+            @RequestParam Long version,
             @RequestBody ReimbursementDto.TravelRecord travelRecord) {
-        return wrap(() -> reimbursementService.addTravelRecord(id, travelRecord));
+        return wrap(() -> reimbursementService.addTravelRecord(id, version, travelRecord));
     }
 
     /**
@@ -54,8 +56,9 @@ public class ReimbursementTravelRecordController {
     public ReimbursementDto.TravelRecord update(
             @PathVariable Long id,
             @PathVariable String recordKey,
+            @RequestParam Long version,
             @RequestBody ReimbursementDto.TravelRecord travelRecord) {
-        return wrap(() -> reimbursementService.updateTravelRecord(id, recordKey, travelRecord));
+        return wrap(() -> reimbursementService.updateTravelRecord(id, recordKey, version, travelRecord));
     }
 
     /**
@@ -65,9 +68,10 @@ public class ReimbursementTravelRecordController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(
             @PathVariable Long id,
-            @PathVariable String recordKey) {
+            @PathVariable String recordKey,
+            @RequestParam Long version) {
         wrap(() -> {
-            reimbursementService.deleteTravelRecord(id, recordKey);
+            reimbursementService.deleteTravelRecord(id, recordKey, version);
             return null;
         });
     }
@@ -75,6 +79,8 @@ public class ReimbursementTravelRecordController {
     private <T> T wrap(ServiceCall<T> call) {
         try {
             return call.run();
+        } catch (ReimbursementVersionConflictException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
         } catch (IllegalArgumentException e) {
             if (e.getMessage() != null && e.getMessage().contains("不存在")) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
