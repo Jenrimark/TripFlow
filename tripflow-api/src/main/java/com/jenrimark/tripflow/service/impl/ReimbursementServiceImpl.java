@@ -6,6 +6,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jenrimark.tripflow.dto.calendar.AllowanceCalendarAddResult;
+import com.jenrimark.tripflow.dto.calendar.AllowanceCalendarDto;
+import com.jenrimark.tripflow.dto.calendar.AllowanceCalendarRequest;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementAllowanceGenerateResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementExpenseSummaryResult;
@@ -1373,5 +1376,372 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         public double getAmount() {
             return amount;
         }
+    }
+
+    // ====================补助日历 CRUD ========================
+
+    /**
+     * 查询指定补助下的全部日历项。
+     * 按日期升序排列。
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<AllowanceCalendarDto> listAllowanceCalendars(Long reimbursementId, Long allowanceId) {
+        getExistingReimbursementRecord(reimbursementId);
+        getExistingAllowance(allowanceId);
+
+        return calendarMapper.selectList(
+                        new LambdaQueryWrapper<ReimbursementAllowanceCalendar>()
+                                .eq(ReimbursementAllowanceCalendar::getAllowanceId, allowanceId)
+                                .orderByAsc(ReimbursementAllowanceCalendar::getCalendarDate))
+                .stream()
+                .map(this::toAllowanceCalendarDto)
+                .toList();
+    }
+
+    /**
+     * 新增一条日历项（仅用于测试）。
+     * 实际业务中日历项由 generateAllowances 接口自动生成。
+     * 幂等：如果该补助下已存在相同日期的日历项，则返回已存在的记录而不新增。
+     */
+    @Override
+    @Transactional
+    public AllowanceCalendarAddResult addAllowanceCalendar(
+            Long reimbursementId, Long allowanceId, AllowanceCalendarRequest request) {
+        ReimbursementRecord record = getExistingReimbursementRecord(reimbursementId);
+        ReimbursementAllowance allowance = getExistingAllowance(allowanceId);
+        validateBelongsToReimbursement(record, allowance);
+
+        LocalDate calendarDate = LocalDate.parse(request.getDate());
+
+        // 幂等：检查同补助同日期是否已存在，有则直接返回
+        ReimbursementAllowanceCalendar existing = calendarMapper.selectOne(
+                new LambdaQueryWrapper<ReimbursementAllowanceCalendar>()
+                        .eq(ReimbursementAllowanceCalendar::getAllowanceId, allowanceId)
+                        .eq(ReimbursementAllowanceCalendar::getCalendarDate, calendarDate));
+        if (existing != null) {
+            AllowanceCalendarAddResult result = new AllowanceCalendarAddResult();
+            result.setCalendar(toAllowanceCalendarDto(existing));
+            result.setNewlyCreated(false);
+            return result;
+        }
+
+        // 校验：勾选为 false 时，金额必须为 0
+        validateAmountConsistency(request);
+
+        ReimbursementAllowanceCalendar calendar = new ReimbursementAllowanceCalendar();
+        calendar.setAllowanceId(allowanceId);
+        calendar.setCalendarDate(calendarDate);
+        calendar.setWeekday(request.getWeekday());
+        calendar.setMealAllowance(toDecimal(request.getMealAllowance()));
+        calendar.setTransportAllowance(toDecimal(request.getTransportAllowance()));
+        calendar.setCommunicationAllowance(toDecimal(request.getCommunicationAllowance()));
+        calendar.setMealSelected(request.getMealSelected() != null ? request.getMealSelected() : false);
+        calendar.setTransportSelected(request.getTransportSelected() != null ? request.getTransportSelected() : false);
+        calendar.setCommunicationSelected(request.getCommunicationSelected() != null ? request.getCommunicationSelected() : false);
+        // 校验：勾选为 false 时，金额强制归零
+        calendar.setMealAmount(calendar.getMealSelected() ? toDecimal(request.getMealAmount()) : BigDecimal.ZERO);
+        calendar.setTransportAmount(calendar.getTransportSelected() ? toDecimal(request.getTransportAmount()) : BigDecimal.ZERO);
+        calendar.setCommunicationAmount(calendar.getCommunicationSelected() ? toDecimal(request.getCommunicationAmount()) : BigDecimal.ZERO);
+        calendarMapper.insert(calendar);
+
+        recalculateAllowanceAmounts(allowance);
+        recalculateReimbursementTotalAmount(record);
+
+        AllowanceCalendarAddResult result = new AllowanceCalendarAddResult();
+        result.setCalendar(toAllowanceCalendarDto(calendar));
+        result.setNewlyCreated(true);
+        return result;
+    }
+
+    /**
+     * 更新单条补助日历项（勾选状态 + 实际金额）。
+     * 更新后自动联动回写：
+     * 1. 所属补助的 totalApplyAmount / totalAllowanceAmount
+     * 2. 所属报销单的 totalAllowanceAmount
+     */
+    @Override
+    @Transactional
+    public AllowanceCalendarDto updateAllowanceCalendar(
+            Long reimbursementId, Long allowanceId, Long calendarId, AllowanceCalendarRequest request) {
+        ReimbursementRecord record = getExistingReimbursementRecord(reimbursementId);
+        ReimbursementAllowance allowance = getExistingAllowance(allowanceId);
+        ReimbursementAllowanceCalendar calendar = getExistingCalendar(calendarId);
+
+        validateBelongsToAllowance(allowance, calendar);
+        validateBelongsToReimbursement(record, allowance);
+
+        // 校验：勾选为 false 时，金额必须为 0
+        validateAmountConsistency(request);
+
+        // 逐字段更新，仅当请求值不为 null 时才更新
+        if (request.getMealSelected() != null) {
+            calendar.setMealSelected(request.getMealSelected());
+        }
+        if (request.getTransportSelected() != null) {
+            calendar.setTransportSelected(request.getTransportSelected());
+        }
+        if (request.getCommunicationSelected() != null) {
+            calendar.setCommunicationSelected(request.getCommunicationSelected());
+        }
+
+        // 校验：勾选为 false 时，金额强制归零
+        normalizeAmountBySelection(calendar, request);
+
+        if (request.getMealAmount() != null) {
+            calendar.setMealAmount(BigDecimal.valueOf(request.getMealAmount()));
+        }
+        if (request.getTransportAmount() != null) {
+            calendar.setTransportAmount(BigDecimal.valueOf(request.getTransportAmount()));
+        }
+        if (request.getCommunicationAmount() != null) {
+            calendar.setCommunicationAmount(BigDecimal.valueOf(request.getCommunicationAmount()));
+        }
+        calendarMapper.updateById(calendar);
+
+        // 联动回写补助金额合计
+        recalculateAllowanceAmounts(allowance);
+        // 联动回写报销单补助总金额
+        recalculateReimbursementTotalAmount(record);
+
+        return toAllowanceCalendarDto(calendar);
+    }
+
+    /**
+     * 批量更新多条补助日历项。
+     * 用于前端全选保存场景，逐条校验归属后批量更新。
+     * 更新后自动联动回写补助金额合计和报销单补助总金额。
+     */
+    @Override
+    @Transactional
+    public List<AllowanceCalendarDto> batchUpdateAllowanceCalendars(
+            Long reimbursementId, Long allowanceId, List<AllowanceCalendarRequest> items) {
+        ReimbursementRecord record = getExistingReimbursementRecord(reimbursementId);
+        ReimbursementAllowance allowance = getExistingAllowance(allowanceId);
+        validateBelongsToReimbursement(record, allowance);
+
+        if (items == null || items.isEmpty()) {
+            throw new IllegalArgumentException("日历项列表不能为空");
+        }
+
+        //逐条更新，每条均校验归属
+        for (AllowanceCalendarRequest item : items) {
+            ReimbursementAllowanceCalendar calendar = getExistingCalendar(item.getId());
+            validateBelongsToAllowance(allowance, calendar);
+
+            if (item.getMealSelected() != null) {
+                calendar.setMealSelected(item.getMealSelected());
+            }
+            if (item.getTransportSelected() != null) {
+                calendar.setTransportSelected(item.getTransportSelected());
+            }
+            if (item.getCommunicationSelected() != null) {
+                calendar.setCommunicationSelected(item.getCommunicationSelected());
+            }
+            // 校验：勾选为 false 时，金额必须为 0
+            validateAmountConsistency(item);
+            // 归零处理
+            normalizeAmountBySelection(calendar, item);
+            if (item.getMealAmount() != null) {
+                calendar.setMealAmount(BigDecimal.valueOf(item.getMealAmount()));
+            }
+            if (item.getTransportAmount() != null) {
+                calendar.setTransportAmount(BigDecimal.valueOf(item.getTransportAmount()));
+            }
+            if (item.getCommunicationAmount() != null) {
+                calendar.setCommunicationAmount(BigDecimal.valueOf(item.getCommunicationAmount()));
+            }
+            calendarMapper.updateById(calendar);
+        }
+
+        // 联动回写补助金额合计
+        recalculateAllowanceAmounts(allowance);
+        // 联动回写报销单补助总金额
+        recalculateReimbursementTotalAmount(record);
+
+        // 返回更新后该补助的全部日历项
+        return listAllowanceCalendars(reimbursementId, allowanceId);
+    }
+
+    /**
+     * 删除指定日历项。
+     * 删除后自动联动回写补助金额合计和报销单补助总金额。
+     */
+    @Override
+    @Transactional
+    public void deleteAllowanceCalendar(Long reimbursementId, Long allowanceId, Long calendarId) {
+        ReimbursementRecord record = getExistingReimbursementRecord(reimbursementId);
+        ReimbursementAllowance allowance = getExistingAllowance(allowanceId);
+        ReimbursementAllowanceCalendar calendar = getExistingCalendar(calendarId);
+
+        validateBelongsToAllowance(allowance, calendar);
+        validateBelongsToReimbursement(record, allowance);
+
+        calendarMapper.deleteById(calendarId);
+
+        // 联动回写补助金额合计
+        recalculateAllowanceAmounts(allowance);
+        // 联动回写报销单补助总金额
+        recalculateReimbursementTotalAmount(record);
+    }
+
+    // ====================私有辅助方法 ========================
+
+    /**
+     * 获取补助信息，不存在则抛异常。
+     */
+    private ReimbursementAllowance getExistingAllowance(Long allowanceId) {
+        ReimbursementAllowance allowance = allowanceMapper.selectById(allowanceId);
+        if (allowance == null) {
+            throw new IllegalArgumentException("补助信息不存在");
+        }
+        return allowance;
+    }
+
+    /**
+     * 获取日历项，不存在则抛异常。
+     */
+    private ReimbursementAllowanceCalendar getExistingCalendar(Long calendarId) {
+        ReimbursementAllowanceCalendar calendar = calendarMapper.selectById(calendarId);
+        if (calendar == null) {
+            throw new IllegalArgumentException("补助日历不存在");
+        }
+        return calendar;
+    }
+
+    /**
+     * 校验金额与勾选状态的一致性：勾选为 false 时，金额必须为 0。
+     * 不一致时抛出异常。
+     */
+    private void validateAmountConsistency(AllowanceCalendarRequest request) {
+        if (Boolean.FALSE.equals(request.getMealSelected()) && request.getMealAmount() != null && request.getMealAmount() > 0) {
+            throw new IllegalArgumentException("餐费补助金额应为0");
+        }
+        if (Boolean.FALSE.equals(request.getTransportSelected()) && request.getTransportAmount() != null && request.getTransportAmount() > 0) {
+            throw new IllegalArgumentException("交通补助金额应为0");
+        }
+        if (Boolean.FALSE.equals(request.getCommunicationSelected()) && request.getCommunicationAmount() != null && request.getCommunicationAmount() > 0) {
+            throw new IllegalArgumentException("通讯补助金额应为0");
+        }
+    }
+
+    /**
+     * 根据勾选状态强制归零金额：勾选为 false 时，对应金额字段强制设为 0。
+     */
+    private void normalizeAmountBySelection(ReimbursementAllowanceCalendar calendar, AllowanceCalendarRequest request) {
+        if (Boolean.FALSE.equals(calendar.getMealSelected())) {
+            calendar.setMealAmount(BigDecimal.ZERO);
+        }
+        if (Boolean.FALSE.equals(calendar.getTransportSelected())) {
+            calendar.setTransportAmount(BigDecimal.ZERO);
+        }
+        if (Boolean.FALSE.equals(calendar.getCommunicationSelected())) {
+            calendar.setCommunicationAmount(BigDecimal.ZERO);
+        }
+    }
+
+    /**
+     * 校验日历项是否属于指定补助。
+     */
+    private void validateBelongsToAllowance(ReimbursementAllowance allowance, ReimbursementAllowanceCalendar calendar) {
+        if (!calendar.getAllowanceId().equals(allowance.getId())) {
+            throw new IllegalArgumentException("该日历不属于指定的补助");
+        }
+    }
+
+    /**
+     * 校验补助是否属于指定报销单。
+     */
+    private void validateBelongsToReimbursement(ReimbursementRecord record, ReimbursementAllowance allowance) {
+        if (!allowance.getReimbursementId().equals(record.getId())) {
+            throw new IllegalArgumentException("该补助不属于指定的报销单");
+        }
+    }
+
+    /**
+     * 重新计算并回写指定补助的 totalApplyAmount 和 totalAllowanceAmount。
+     * 计算规则：仅汇总被勾选的补助项。
+     * - totalApplyAmount = Σ(标准金额 × 勾选状态)
+     * - totalAllowanceAmount = Σ(实际金额 × 勾选状态)
+     */
+    private void recalculateAllowanceAmounts(ReimbursementAllowance allowance) {
+        List<ReimbursementAllowanceCalendar> calendars = calendarMapper.selectList(
+                new LambdaQueryWrapper<ReimbursementAllowanceCalendar>()
+                        .eq(ReimbursementAllowanceCalendar::getAllowanceId, allowance.getId()));
+
+        BigDecimal totalApplyAmount = BigDecimal.ZERO;
+        BigDecimal totalAllowanceAmount = BigDecimal.ZERO;
+
+        for (ReimbursementAllowanceCalendar c : calendars) {
+            if (Boolean.TRUE.equals(c.getMealSelected())) {
+                totalApplyAmount = totalApplyAmount.add(c.getMealAllowance());
+                totalAllowanceAmount = totalAllowanceAmount.add(c.getMealAmount());
+            }
+            if (Boolean.TRUE.equals(c.getTransportSelected())) {
+                totalApplyAmount = totalApplyAmount.add(c.getTransportAllowance());
+                totalAllowanceAmount = totalAllowanceAmount.add(c.getTransportAmount());
+            }
+            if (Boolean.TRUE.equals(c.getCommunicationSelected())) {
+                totalApplyAmount = totalApplyAmount.add(c.getCommunicationAllowance());
+                totalAllowanceAmount = totalAllowanceAmount.add(c.getCommunicationAmount());
+            }
+        }
+
+        allowance.setTotalApplyAmount(totalApplyAmount);
+        allowance.setTotalAllowanceAmount(totalAllowanceAmount);
+        allowanceMapper.updateById(allowance);
+    }
+
+    /**
+     * 重新计算并回写指定报销单的 totalAllowanceAmount。
+     * 为该报销单下所有补助的 totalAllowanceAmount 之和。
+     */
+    private void recalculateReimbursementTotalAmount(ReimbursementRecord record) {
+        List<ReimbursementAllowance> allowances = allowanceMapper.selectList(
+                new LambdaQueryWrapper<ReimbursementAllowance>()
+                        .eq(ReimbursementAllowance::getReimbursementId, record.getId()));
+
+        BigDecimal totalAmount = allowances.stream()
+                .map(ReimbursementAllowance::getTotalAllowanceAmount)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        record.setTotalAllowanceAmount(totalAmount);
+        record.setUpdatedAt(LocalDateTime.now());
+        updateById(record);
+    }
+
+    /**
+     * 将实体对象转换为 DTO。
+     */
+    private AllowanceCalendarDto toAllowanceCalendarDto(ReimbursementAllowanceCalendar calendar) {
+        AllowanceCalendarDto dto = new AllowanceCalendarDto();
+        dto.setId(calendar.getId());
+        dto.setDate(calendar.getCalendarDate().toString());
+        dto.setWeekday(calendar.getWeekday());
+        dto.setMealAllowance(toDouble(calendar.getMealAllowance()));
+        dto.setTransportAllowance(toDouble(calendar.getTransportAllowance()));
+        dto.setCommunicationAllowance(toDouble(calendar.getCommunicationAllowance()));
+        dto.setMealSelected(calendar.getMealSelected());
+        dto.setTransportSelected(calendar.getTransportSelected());
+        dto.setCommunicationSelected(calendar.getCommunicationSelected());
+        dto.setMealAmount(toDouble(calendar.getMealAmount()));
+        dto.setTransportAmount(toDouble(calendar.getTransportAmount()));
+        dto.setCommunicationAmount(toDouble(calendar.getCommunicationAmount()));
+        return dto;
+    }
+
+    /**
+     * BigDecimal 转 Double，null 转为 0D。
+     */
+    private Double toDouble(BigDecimal value) {
+        return value != null ? value.doubleValue() : 0D;
+    }
+
+    /**
+     * Double 转 BigDecimal，null 转为 ZERO。
+     */
+    private BigDecimal toDecimal(Double value) {
+        return value != null ? BigDecimal.valueOf(value) : BigDecimal.ZERO;
     }
 }
