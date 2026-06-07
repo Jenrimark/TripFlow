@@ -15,10 +15,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
 public class ReimbursementChildRecordService {
+
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ISO_LOCAL_DATE;
 
     private final ReimbursementTravelRecordMapper travelRecordMapper;
     private final ReimbursementAllowanceMapper allowanceMapper;
@@ -34,6 +39,86 @@ public class ReimbursementChildRecordService {
         this.allowanceMapper = allowanceMapper;
         this.calendarMapper = calendarMapper;
         this.costAllocationMapper = costAllocationMapper;
+    }
+
+    public List<ReimbursementDto.TravelRecord> loadTravelRecords(Long reimbursementId) {
+        List<ReimbursementTravelRecord> records = travelRecordMapper.selectList(
+                new LambdaQueryWrapper<ReimbursementTravelRecord>()
+                        .eq(ReimbursementTravelRecord::getReimbursementId, reimbursementId)
+                        .orderByAsc(ReimbursementTravelRecord::getDepartureDate)
+                        .orderByAsc(ReimbursementTravelRecord::getId));
+
+        List<ReimbursementDto.TravelRecord> result = new ArrayList<>();
+        for (ReimbursementTravelRecord record : records) {
+            result.add(toTravelRecordDto(record));
+        }
+        return result;
+    }
+
+    public ReimbursementDto.TravelRecord loadTravelRecord(Long reimbursementId, String recordKey) {
+        ReimbursementTravelRecord record = travelRecordMapper.selectOne(
+                new LambdaQueryWrapper<ReimbursementTravelRecord>()
+                        .eq(ReimbursementTravelRecord::getReimbursementId, reimbursementId)
+                        .eq(ReimbursementTravelRecord::getRecordKey, recordKey));
+        if (record == null) {
+            throw new IllegalArgumentException("补录行程不存在");
+        }
+        return toTravelRecordDto(record);
+    }
+
+    public List<ReimbursementDto.AllowanceInfo> loadAllowances(Long reimbursementId) {
+        List<ReimbursementAllowance> allowances = allowanceMapper.selectList(
+                new LambdaQueryWrapper<ReimbursementAllowance>()
+                        .eq(ReimbursementAllowance::getReimbursementId, reimbursementId)
+                        .orderByAsc(ReimbursementAllowance::getDepartureDate)
+                        .orderByAsc(ReimbursementAllowance::getId));
+
+        List<ReimbursementDto.AllowanceInfo> result = new ArrayList<>();
+        for (ReimbursementAllowance allowance : allowances) {
+            ReimbursementDto.AllowanceInfo item = new ReimbursementDto.AllowanceInfo();
+            item.setId(allowance.getAllowanceKey());
+            item.setTravelRecordId(allowance.getTravelRecordKey());
+            item.setReimburserId(allowance.getReimburserId());
+            item.setReimburserName(allowance.getReimburserName());
+            if (allowance.getDepartureDate() != null) {
+                item.setDepartureDate(allowance.getDepartureDate().format(DATE_FMT));
+            }
+            if (allowance.getArrivalDate() != null) {
+                item.setArrivalDate(allowance.getArrivalDate().format(DATE_FMT));
+            }
+            item.setAllowanceDays(allowance.getAllowanceDays());
+            item.setDepartureCity(allowance.getDepartureCity());
+            item.setArrivalCity(allowance.getArrivalCity());
+            item.setTotalApplyAmount(toDouble(allowance.getTotalApplyAmount()));
+            item.setTotalAllowanceAmount(toDouble(allowance.getTotalAllowanceAmount()));
+            item.setCalendar(loadAllowanceCalendar(allowance.getId()));
+            result.add(item);
+        }
+        return result;
+    }
+
+    public List<ReimbursementDto.CostAllocation> loadCostAllocations(Long reimbursementId) {
+        List<ReimbursementCostAllocation> allocations = costAllocationMapper.selectList(
+                new LambdaQueryWrapper<ReimbursementCostAllocation>()
+                        .eq(ReimbursementCostAllocation::getReimbursementId, reimbursementId)
+                        .orderByAsc(ReimbursementCostAllocation::getSortOrder)
+                        .orderByAsc(ReimbursementCostAllocation::getId));
+
+        List<ReimbursementDto.CostAllocation> result = new ArrayList<>();
+        for (ReimbursementCostAllocation allocation : allocations) {
+            ReimbursementDto.CostAllocation item = new ReimbursementDto.CostAllocation();
+            item.setId(allocation.getAllocationKey());
+            item.setCompanyId(allocation.getCompanyId());
+            item.setCompanyName(allocation.getCompanyName());
+            item.setCompanyNo(allocation.getCompanyNo());
+            item.setProjectId(allocation.getProjectId());
+            item.setProjectName(allocation.getProjectName());
+            item.setProjectNo(allocation.getProjectNo());
+            item.setRatio(toDouble(allocation.getRatio()));
+            item.setAmount(toDouble(allocation.getAmount()));
+            result.add(item);
+        }
+        return result;
     }
 
     @Transactional
@@ -133,5 +218,57 @@ public class ReimbursementChildRecordService {
 
     private BigDecimal toDecimal(Double value) {
         return value != null ? BigDecimal.valueOf(value) : BigDecimal.ZERO;
+    }
+
+    private List<ReimbursementDto.AllowanceCalendarItem> loadAllowanceCalendar(Long allowanceId) {
+        List<ReimbursementAllowanceCalendar> calendars = calendarMapper.selectList(
+                new LambdaQueryWrapper<ReimbursementAllowanceCalendar>()
+                        .eq(ReimbursementAllowanceCalendar::getAllowanceId, allowanceId));
+        calendars.sort(Comparator.comparing(ReimbursementAllowanceCalendar::getCalendarDate)
+                .thenComparing(ReimbursementAllowanceCalendar::getId));
+
+        List<ReimbursementDto.AllowanceCalendarItem> result = new ArrayList<>();
+        for (ReimbursementAllowanceCalendar calendar : calendars) {
+            ReimbursementDto.AllowanceCalendarItem item = new ReimbursementDto.AllowanceCalendarItem();
+            if (calendar.getCalendarDate() != null) {
+                item.setDate(calendar.getCalendarDate().format(DATE_FMT));
+            }
+            item.setWeekday(calendar.getWeekday());
+            item.setMealAllowance(toDouble(calendar.getMealAllowance()));
+            item.setTransportAllowance(toDouble(calendar.getTransportAllowance()));
+            item.setCommunicationAllowance(toDouble(calendar.getCommunicationAllowance()));
+            item.setMealSelected(calendar.getMealSelected());
+            item.setTransportSelected(calendar.getTransportSelected());
+            item.setCommunicationSelected(calendar.getCommunicationSelected());
+            item.setMealAmount(toDouble(calendar.getMealAmount()));
+            item.setTransportAmount(toDouble(calendar.getTransportAmount()));
+            item.setCommunicationAmount(toDouble(calendar.getCommunicationAmount()));
+            result.add(item);
+        }
+        return result;
+    }
+
+    private Double toDouble(BigDecimal value) {
+        return value != null ? value.doubleValue() : 0D;
+    }
+
+    private ReimbursementDto.TravelRecord toTravelRecordDto(ReimbursementTravelRecord record) {
+        ReimbursementDto.TravelRecord item = new ReimbursementDto.TravelRecord();
+        item.setId(record.getRecordKey());
+        item.setReimburserId(record.getReimburserId());
+        item.setReimburserName(record.getReimburserName());
+        item.setReimburserNo(record.getReimburserNo());
+        item.setDepartureCityId(record.getDepartureCityId());
+        item.setDepartureCityName(record.getDepartureCityName());
+        item.setArrivalCityId(record.getArrivalCityId());
+        item.setArrivalCityName(record.getArrivalCityName());
+        if (record.getDepartureDate() != null) {
+            item.setDepartureDate(record.getDepartureDate().format(DATE_FMT));
+        }
+        if (record.getArrivalDate() != null) {
+            item.setArrivalDate(record.getArrivalDate().format(DATE_FMT));
+        }
+        item.setDescription(record.getDescription());
+        return item;
     }
 }

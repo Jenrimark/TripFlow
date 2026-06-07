@@ -14,10 +14,12 @@ import com.jenrimark.tripflow.entity.ReimbursementAllowance;
 import com.jenrimark.tripflow.entity.ReimbursementAllowanceCalendar;
 import com.jenrimark.tripflow.entity.ReimbursementCostAllocation;
 import com.jenrimark.tripflow.entity.ReimbursementRecord;
+import com.jenrimark.tripflow.entity.ReimbursementTravelRecord;
 import com.jenrimark.tripflow.mapper.ReimbursementAllowanceCalendarMapper;
 import com.jenrimark.tripflow.mapper.ReimbursementAllowanceMapper;
 import com.jenrimark.tripflow.mapper.ReimbursementCostAllocationMapper;
 import com.jenrimark.tripflow.mapper.ReimbursementMapper;
+import com.jenrimark.tripflow.mapper.ReimbursementTravelRecordMapper;
 import com.jenrimark.tripflow.service.ReimbursementService;
 import com.jenrimark.tripflow.service.reimbursement.ReimbursementAllowanceGenerationService;
 import com.jenrimark.tripflow.service.reimbursement.ReimbursementChildRecordService;
@@ -49,6 +51,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     private final ReimbursementAllowanceMapper allowanceMapper;
     private final ReimbursementAllowanceCalendarMapper calendarMapper;
     private final ReimbursementCostAllocationMapper costAllocationMapper;
+    private final ReimbursementTravelRecordMapper travelRecordMapper;
 
     /**
      * 注入报销单服务实现依赖的序列化、校验和数据访问组件。
@@ -60,7 +63,8 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             ReimbursementChildRecordService childRecordService,
             ReimbursementAllowanceMapper allowanceMapper,
             ReimbursementAllowanceCalendarMapper calendarMapper,
-            ReimbursementCostAllocationMapper costAllocationMapper) {
+            ReimbursementCostAllocationMapper costAllocationMapper,
+            ReimbursementTravelRecordMapper travelRecordMapper) {
         this.objectMapper = objectMapper;
         this.validator = validator;
         this.allowanceGenerationService = allowanceGenerationService;
@@ -68,6 +72,30 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         this.allowanceMapper = allowanceMapper;
         this.calendarMapper = calendarMapper;
         this.costAllocationMapper = costAllocationMapper;
+        this.travelRecordMapper = travelRecordMapper;
+    }
+
+    private ReimbursementDto toDto(ReimbursementRecord record) {
+        return toDetailDto(record);
+    }
+
+    /**
+     * 把主表record对象 映射到 报销单对象（ReimbursementDto）,并补齐子表信息
+     * */
+    private ReimbursementDto toDetailDto(ReimbursementRecord record) {
+        ReimbursementDto dto = toListDto(record);
+        // 查询补录行程子表
+        dto.setTravelRecords(childRecordService.loadTravelRecords(record.getId()));
+        // 查询补助信息子表
+        dto.setAllowances(childRecordService.loadAllowances(record.getId()));
+        // 查询费用归属及分摊子表
+        dto.setCostAllocations(childRecordService.loadCostAllocations(record.getId()));
+        // 重新计算汇总金额
+        dto.setTotalAllowanceAmount(sumAllowanceAmount(dto.getAllowances()));
+        dto.setTotalMealAmount(sumMealAmount(dto.getAllowances()));
+        dto.setTotalTransportAmount(sumTransportAmount(dto.getAllowances()));
+        dto.setTotalCommunicationAmount(sumCommunicationAmount(dto.getAllowances()));
+        return dto;
     }
 
     /**
@@ -111,7 +139,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         Page<ReimbursementRecord> pageResult = page(new Page<>(page, pageSize), wrapper);
 
         ReimbursementListResult result = new ReimbursementListResult();
-        result.setList(pageResult.getRecords().stream().map(this::toDto).toList());
+        result.setList(pageResult.getRecords().stream().map(this::toListDto).toList());
         result.setTotal(pageResult.getTotal());
         result.setPage(page);
         result.setPageSize(pageSize);
@@ -127,7 +155,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         if (record == null) {
             throw new IllegalArgumentException("报销单不存在");
         }
-        return toDto(record);
+        return rebuildSnapshotAndLoadDetail(record.getId());
     }
 
     /**
@@ -153,11 +181,11 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         save(record);
         // 保存子表数据（补录行程，补助信息，补助日历，费用分摊）
         childRecordService.replaceChildRecords(record.getId(), dto);
-        return toDto(record);
+        return rebuildSnapshotAndLoadDetail(record.getId());
     }
 
     /**
-     * 更新报销单主表并整体重建关联子表数据。
+     * 更新报销单主表 并 更新子表数据。
      */
     @Override
     @Transactional
@@ -176,7 +204,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         updateById(record);
         // 更新子表数据
         childRecordService.replaceChildRecords(id, dto);
-        return toDto(record);
+        return rebuildSnapshotAndLoadDetail(id);
     }
 
     /**
@@ -184,20 +212,20 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     public ReimbursementDto updateRemark(Long id, ReimbursementRemarkRequest request) {
-        // 根据报销单id查询主表数据
         ReimbursementRecord record = getExistingReimbursementRecord(id);
-        ReimbursementDto dto = toDto(record);
+        String remark = request != null ? request.getRemark() : null;
+        // 校验备注数据
+        validator.validateRemark(remark);
 
-        // 修改dto中的备注信息
-        dto.setRemark(request != null ? request.getRemark() : null);
-        // 校验备注
-        validator.validateRemark(dto.getRemark());
-
+        // 更新备注
+        record.setRemark(remark);
         record.setUpdatedAt(LocalDateTime.now());
-        applyDtoToRecord(dto, record);
-        // 更新主表数据
+        // 更新主表快照
+        ReimbursementDto snapshot = toListDto(record);
+        record.setContent(writeSnapshot(snapshot, record));
+        // 更新数据库
         updateById(record);
-        return toDto(record);
+        return rebuildSnapshotAndLoadDetail(id);
     }
 
     /**
@@ -205,7 +233,13 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     public ReimbursementDto clearRemark(Long id) {
-        return updateRemark(id, null);
+        ReimbursementRecord record = getExistingReimbursementRecord(id);
+        record.setRemark(null);
+        record.setUpdatedAt(LocalDateTime.now());
+        ReimbursementDto snapshot = toListDto(record);
+        record.setContent(writeSnapshot(snapshot, record));
+        updateById(record);
+        return rebuildSnapshotAndLoadDetail(id);
     }
 
     /**
@@ -237,7 +271,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         updateById(record);
         // 重建子表数据
         childRecordService.replaceChildRecords(id, dto);
-        return buildAllowanceGenerateResult(dto);
+        return buildAllowanceGenerateResult(rebuildSnapshotAndLoadDetail(id));
     }
 
     /**
@@ -300,29 +334,27 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     @Transactional
     public List<ReimbursementDto.CostAllocation> evenlyDistributeCostAllocations(Long id) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
-        ReimbursementDto dto = toDto(record);
-
-        if (dto.getCostAllocations() == null || dto.getCostAllocations().isEmpty()) {
+        List<ReimbursementCostAllocation> allocations = loadCostAllocationEntities(id);
+        if (allocations.isEmpty()) {
             throw new IllegalArgumentException("请至少添加一条分摊信息");
         }
 
-        int count = dto.getCostAllocations().size();
-        double totalAmount = dto.getTotalAllowanceAmount() != null ? dto.getTotalAllowanceAmount() : 0D;
+        int count = allocations.size();
+        double totalAmount = getTotalAllowanceAmount(record);
         List<EvenAllocationItem> evenResults = calculateEvenAllocations(totalAmount, count);
 
         for (int i = 0; i < count; i++) {
-            ReimbursementDto.CostAllocation allocation = dto.getCostAllocations().get(i);
+            ReimbursementCostAllocation allocation = allocations.get(i);
             EvenAllocationItem evenItem = evenResults.get(i);
-            allocation.setRatio(evenItem.getRatio());
-            allocation.setAmount(evenItem.getAmount());
+            allocation.setRatio(toRatioDecimal(evenItem.getRatio()));
+            allocation.setAmount(toAmountDecimal(evenItem.getAmount()));
         }
 
-        validator.validateForSave(dto);
+        validateCostAllocationListIfComplete(allocations, totalAmount);
+        updateCostAllocationEntities(allocations);
         record.setUpdatedAt(LocalDateTime.now());
-        applyDtoToRecord(dto, record);
         updateById(record);
-        childRecordService.replaceChildRecords(id, dto);
-        return dto.getCostAllocations();
+        return rebuildSnapshotAndLoadDetail(id).getCostAllocations();
     }
 
     /**
@@ -332,20 +364,32 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     @Transactional
     public ReimbursementDto.CostAllocation addCostAllocation(Long id, ReimbursementDto.CostAllocation costAllocation) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
-        ReimbursementDto dto = toDto(record);
-        List<ReimbursementDto.CostAllocation> costAllocations =
-                dto.getCostAllocations() != null ? new ArrayList<>(dto.getCostAllocations()) : new ArrayList<>();
-
         ReimbursementDto.CostAllocation newAllocation = createInitialCostAllocation(costAllocation);
+        long existingCount = costAllocationMapper.selectCount(
+                new LambdaQueryWrapper<ReimbursementCostAllocation>()
+                        .eq(ReimbursementCostAllocation::getReimbursementId, id));
 
-        costAllocations.add(newAllocation);
-        dto.setCostAllocations(costAllocations);
+        ReimbursementCostAllocation entity = new ReimbursementCostAllocation();
+        entity.setReimbursementId(id);
+        entity.setAllocationKey(newAllocation.getId());
+        entity.setCompanyId(newAllocation.getCompanyId());
+        entity.setCompanyName(newAllocation.getCompanyName());
+        entity.setCompanyNo(newAllocation.getCompanyNo());
+        entity.setProjectId(newAllocation.getProjectId());
+        entity.setProjectName(newAllocation.getProjectName());
+        entity.setProjectNo(newAllocation.getProjectNo());
+        entity.setRatio(BigDecimal.ZERO);
+        entity.setAmount(BigDecimal.ZERO);
+        entity.setSortOrder((int) existingCount);
+        costAllocationMapper.insert(entity);
+
+        List<ReimbursementCostAllocation> allocations = loadCostAllocationEntities(id);
+        recalculateCostAllocationRows(allocations, getTotalAllowanceAmount(record));
+        updateCostAllocationEntities(allocations);
 
         record.setUpdatedAt(LocalDateTime.now());
-        applyDtoToRecord(dto, record);
         updateById(record);
-        childRecordService.replaceChildRecords(id, dto);
-        return newAllocation;
+        return findCostAllocation(rebuildSnapshotAndLoadDetail(id), newAllocation.getId());
     }
 
     /**
@@ -353,34 +397,32 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      */
     @Override
     @Transactional
-    public ReimbursementDto.CostAllocation updateCostAllocation(
-            Long id,
-            String allocationKey,
+    public ReimbursementDto.CostAllocation updateCostAllocation(Long id, String allocationKey,
             ReimbursementDto.CostAllocation costAllocation) {
+        // 先确认报销单存在，再读取当前分摊修改请求
         ReimbursementRecord record = getExistingReimbursementRecord(id);
         if (costAllocation == null) {
             throw new IllegalArgumentException("分摊信息不能为空");
         }
 
-        ReimbursementDto dto = toDto(record);
-        ReimbursementDto.CostAllocation existing = findCostAllocation(dto, allocationKey);
+        // 查询当前报销单下的全部分摊行，并定位要修改的目标记录
+        List<ReimbursementCostAllocation> allocations = loadCostAllocationEntities(id);
+        ReimbursementCostAllocation target = findCostAllocationEntity(allocations, allocationKey);
+        ReimbursementDto.CostAllocation mergedAllocation =
+                mergeCostAllocationDraft(toCostAllocationDto(target), costAllocation);
+        validateCostAllocationDraft(mergedAllocation);
 
-        costAllocation.setId(allocationKey);
-        existing.setCompanyId(costAllocation.getCompanyId());
-        existing.setCompanyName(costAllocation.getCompanyName());
-        existing.setCompanyNo(costAllocation.getCompanyNo());
-        existing.setProjectId(costAllocation.getProjectId());
-        existing.setProjectName(costAllocation.getProjectName());
-        existing.setProjectNo(costAllocation.getProjectNo());
-        existing.setRatio(costAllocation.getRatio());
-        existing.setAmount(costAllocation.getAmount());
+        // 先更新当前行，再统一重算整张分摊表，自动回写首行比例和金额
+        applyCostAllocationChange(target, mergedAllocation);
+        // 重新计算分摊金额
+        recalculateCostAllocationRows(allocations, getTotalAllowanceAmount(record));
+        validateCostAllocationListIfComplete(allocations, getTotalAllowanceAmount(record));
+        updateCostAllocationEntities(allocations);
 
-        validator.validateForSave(dto);
+        // 同步主表更新时间，并重建快照后返回最新结果
         record.setUpdatedAt(LocalDateTime.now());
-        applyDtoToRecord(dto, record);
         updateById(record);
-        childRecordService.replaceChildRecords(id, dto);
-        return existing;
+        return findCostAllocation(rebuildSnapshotAndLoadDetail(id), allocationKey);
     }
 
     /**
@@ -390,23 +432,24 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     @Transactional
     public void deleteCostAllocation(Long id, String allocationKey) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
-        ReimbursementDto dto = toDto(record);
-        findCostAllocation(dto, allocationKey);
-
-        if (dto.getCostAllocations() == null || dto.getCostAllocations().size() <= 1) {
+        // 先查询当前报销单下的全部分摊行，并确认待删除记录存在
+        List<ReimbursementCostAllocation> allocations = loadCostAllocationEntities(id);
+        if (allocations.size() <= 1) {
             throw new IllegalArgumentException("至少保留一条分摊信息");
         }
 
-        List<ReimbursementDto.CostAllocation> costAllocations =
-                dto.getCostAllocations() != null ? new ArrayList<>(dto.getCostAllocations()) : new ArrayList<>();
-        costAllocations.removeIf(item -> allocationKey.equals(item.getId()));
-        dto.setCostAllocations(costAllocations);
+        ReimbursementCostAllocation target = findCostAllocationEntity(allocations, allocationKey);
 
-        validator.validateForSave(dto);
+        // 删除分摊行本身，不再因为其余分摊行暂未填写完整而拦截删除操作
+        costAllocationMapper.deleteById(target.getId());
+
+        List<ReimbursementCostAllocation> remainingAllocations = loadCostAllocationEntities(id);
+        recalculateCostAllocationRows(remainingAllocations, getTotalAllowanceAmount(record));
+        updateCostAllocationEntities(remainingAllocations);
+
         record.setUpdatedAt(LocalDateTime.now());
-        applyDtoToRecord(dto, record);
         updateById(record);
-        childRecordService.replaceChildRecords(id, dto);
+        rebuildSnapshot(id);
     }
 
     /**
@@ -415,8 +458,8 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     @Override
     @Transactional
     public List<ReimbursementDto.TravelRecord> listTravelRecords(Long id) {
-        ReimbursementDto dto = getExistingReimbursementDto(id);
-        return dto.getTravelRecords() != null ? dto.getTravelRecords() : List.of();
+        getExistingReimbursementRecord(id);
+        return childRecordService.loadTravelRecords(id);
     }
 
     /**
@@ -425,8 +468,8 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     @Override
     @Transactional
     public ReimbursementDto.TravelRecord getTravelRecord(Long id, String recordKey) {
-        ReimbursementDto dto = getExistingReimbursementDto(id);
-        return findTravelRecord(dto, recordKey);
+        getExistingReimbursementRecord(id);
+        return childRecordService.loadTravelRecord(id, recordKey);
     }
 
     /**
@@ -440,24 +483,19 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             throw new IllegalArgumentException("补录行程不能为空");
         }
 
-        ReimbursementDto dto = toDto(record);
-        List<ReimbursementDto.TravelRecord> travelRecords =
-                dto.getTravelRecords() != null ? new ArrayList<>(dto.getTravelRecords()) : new ArrayList<>();
-
         if (!StringUtils.hasText(travelRecord.getId())) {
             travelRecord.setId("travel_" + System.currentTimeMillis());
         }
 
+        List<ReimbursementDto.TravelRecord> travelRecords = childRecordService.loadTravelRecords(id);
         travelRecords.add(travelRecord);
-        dto.setTravelRecords(travelRecords);
+        validateTravelRecordList(travelRecords);
 
-        validator.validateForSave(dto);
-
+        travelRecordMapper.insert(toTravelRecordEntity(id, travelRecord));
         record.setUpdatedAt(LocalDateTime.now());
-        applyDtoToRecord(dto, record);
         updateById(record);
-        childRecordService.replaceChildRecords(id, dto);
-        return travelRecord;
+        rebuildSnapshot(id);
+        return childRecordService.loadTravelRecord(id, travelRecord.getId());
     }
 
     /**
@@ -474,28 +512,21 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             throw new IllegalArgumentException("补录行程不能为空");
         }
 
-        ReimbursementDto dto = toDto(record);
-        ReimbursementDto.TravelRecord existing = findTravelRecord(dto, recordKey);
+        ReimbursementTravelRecord existing = getTravelRecordEntity(id, recordKey);
+        ReimbursementDto.TravelRecord mergedTravelRecord = mergeTravelRecordDraft(toTravelRecordDto(existing), travelRecord);
+        mergedTravelRecord.setId(recordKey);
 
-        travelRecord.setId(recordKey);
-        existing.setReimburserId(travelRecord.getReimburserId());
-        existing.setReimburserName(travelRecord.getReimburserName());
-        existing.setReimburserNo(travelRecord.getReimburserNo());
-        existing.setDepartureCityId(travelRecord.getDepartureCityId());
-        existing.setDepartureCityName(travelRecord.getDepartureCityName());
-        existing.setArrivalCityId(travelRecord.getArrivalCityId());
-        existing.setArrivalCityName(travelRecord.getArrivalCityName());
-        existing.setDepartureDate(travelRecord.getDepartureDate());
-        existing.setArrivalDate(travelRecord.getArrivalDate());
-        existing.setDescription(travelRecord.getDescription());
+        List<ReimbursementDto.TravelRecord> travelRecords = childRecordService.loadTravelRecords(id).stream()
+                .map(item -> recordKey.equals(item.getId()) ? mergedTravelRecord : item)
+                .toList();
+        validateTravelRecordList(travelRecords);
 
-        validator.validateForSave(dto);
-
+        applyTravelRecordChange(existing, mergedTravelRecord);
+        travelRecordMapper.updateById(existing);
         record.setUpdatedAt(LocalDateTime.now());
-        applyDtoToRecord(dto, record);
         updateById(record);
-        childRecordService.replaceChildRecords(id, dto);
-        return existing;
+        rebuildSnapshot(id);
+        return childRecordService.loadTravelRecord(id, recordKey);
     }
 
     /**
@@ -505,24 +536,26 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     @Transactional
     public void deleteTravelRecord(Long id, String recordKey) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
-        ReimbursementDto dto = toDto(record);
-        findTravelRecord(dto, recordKey);
+        getTravelRecordEntity(id, recordKey);
 
-        List<ReimbursementDto.TravelRecord> travelRecords =
-                dto.getTravelRecords() != null ? new ArrayList<>(dto.getTravelRecords()) : new ArrayList<>();
-        travelRecords.removeIf(item -> recordKey.equals(item.getId()));
-        dto.setTravelRecords(travelRecords);
-
-        if (dto.getAllowances() != null) {
-            dto.setAllowances(dto.getAllowances().stream()
-                    .filter(item -> !recordKey.equals(item.getTravelRecordId()))
-                    .toList());
+        List<ReimbursementAllowance> allowances = allowanceMapper.selectList(
+                new LambdaQueryWrapper<ReimbursementAllowance>()
+                        .eq(ReimbursementAllowance::getReimbursementId, id)
+                        .eq(ReimbursementAllowance::getTravelRecordKey, recordKey));
+        for (ReimbursementAllowance allowance : allowances) {
+            calendarMapper.delete(new LambdaQueryWrapper<ReimbursementAllowanceCalendar>()
+                    .eq(ReimbursementAllowanceCalendar::getAllowanceId, allowance.getId()));
         }
+        allowanceMapper.delete(new LambdaQueryWrapper<ReimbursementAllowance>()
+                .eq(ReimbursementAllowance::getReimbursementId, id)
+                .eq(ReimbursementAllowance::getTravelRecordKey, recordKey));
+        travelRecordMapper.delete(new LambdaQueryWrapper<ReimbursementTravelRecord>()
+                .eq(ReimbursementTravelRecord::getReimbursementId, id)
+                .eq(ReimbursementTravelRecord::getRecordKey, recordKey));
 
         record.setUpdatedAt(LocalDateTime.now());
-        applyDtoToRecord(dto, record);
         updateById(record);
-        childRecordService.replaceChildRecords(id, dto);
+        rebuildSnapshot(id);
     }
 
     /**
@@ -576,14 +609,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      * 将主表中的状态值同步回 content JSON，保持两份数据一致。
      */
     private void syncStatusToContent(ReimbursementRecord record) {
-        try {
-            ReimbursementDto dto = objectMapper.readValue(record.getContent(), ReimbursementDto.class);
-            dto.setStatus(record.getStatus());
-            record.setContent(objectMapper.writeValueAsString(dto));
-            updateById(record);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("报销单数据解析失败", e);
-        }
+        rebuildSnapshot(record.getId());
     }
 
     /**
@@ -625,7 +651,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             if (record.getCreatedAt() != null) {
                 dto.setCreatedAt(record.getCreatedAt().toLocalDate().format(DATE_FMT));
             }
-            record.setContent(objectMapper.writeValueAsString(dto));
+            record.setContent(objectMapper.writeValueAsString(buildSnapshotDto(record, dto)));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("报销单数据序列化失败", e);
         }
@@ -634,7 +660,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     /**
      * 将主表记录和 content JSON 反序列化为统一的报销单 DTO。
      */
-    private ReimbursementDto toDto(ReimbursementRecord record) {
+    private ReimbursementDto toListDto(ReimbursementRecord record) {
         try {
             ReimbursementDto dto = objectMapper.readValue(record.getContent(), ReimbursementDto.class);
             dto.setId(String.valueOf(record.getId()));
@@ -674,6 +700,52 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         return toDto(getExistingReimbursementRecord(id));
     }
 
+    private ReimbursementDto rebuildSnapshotAndLoadDetail(Long id) {
+        rebuildSnapshot(id);
+        return toDto(getExistingReimbursementRecord(id));
+    }
+
+    private void rebuildSnapshot(Long id) {
+        ReimbursementRecord record = getExistingReimbursementRecord(id);
+        ReimbursementDto snapshot = toDetailDto(record);
+        record.setContent(writeSnapshot(snapshot, record));
+        updateById(record);
+    }
+
+    private ReimbursementDto buildSnapshotDto(ReimbursementRecord record, ReimbursementDto dto) {
+        if (record.getId() != null) {
+            dto.setId(String.valueOf(record.getId()));
+        }
+        if (StringUtils.hasText(record.getDocumentNo())) {
+            dto.setDocumentNo(record.getDocumentNo());
+        }
+        dto.setStatus(record.getStatus());
+        dto.setRemark(record.getRemark());
+        if (record.getCreatedAt() != null) {
+            dto.setCreatedAt(record.getCreatedAt().toLocalDate().format(DATE_FMT));
+        }
+        if (!StringUtils.hasText(dto.getDocumentType())) {
+            dto.setDocumentType("日常报销单");
+        }
+        if (dto.getAllowances() != null) {
+            dto.setTotalAllowanceAmount(sumAllowanceAmount(dto.getAllowances()));
+            dto.setTotalMealAmount(sumMealAmount(dto.getAllowances()));
+            dto.setTotalTransportAmount(sumTransportAmount(dto.getAllowances()));
+            dto.setTotalCommunicationAmount(sumCommunicationAmount(dto.getAllowances()));
+        } else if (record.getTotalAllowanceAmount() != null) {
+            dto.setTotalAllowanceAmount(record.getTotalAllowanceAmount().doubleValue());
+        }
+        return dto;
+    }
+
+    private String writeSnapshot(ReimbursementDto dto, ReimbursementRecord record) {
+        try {
+            return objectMapper.writeValueAsString(buildSnapshotDto(record, dto));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("报销单数据序列化失败", e);
+        }
+    }
+
     /**
      * 从当前报销单中按标识查找指定补录行程。
      */
@@ -704,6 +776,310 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
                 .filter(item -> allocationKey.equals(item.getId()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("分摊信息不存在"));
+    }
+
+    /**
+     * 查询指定报销单下的全部分摊实体记录。
+     */
+    private List<ReimbursementCostAllocation> loadCostAllocationEntities(Long reimbursementId) {
+        return costAllocationMapper.selectList(
+                new LambdaQueryWrapper<ReimbursementCostAllocation>()
+                        .eq(ReimbursementCostAllocation::getReimbursementId, reimbursementId)
+                        .orderByAsc(ReimbursementCostAllocation::getSortOrder, ReimbursementCostAllocation::getId));
+    }
+
+    /**
+     * 在分摊实体列表中定位要更新的目标记录。
+     */
+    private ReimbursementCostAllocation findCostAllocationEntity(
+            List<ReimbursementCostAllocation> allocations,
+            String allocationKey) {
+        return allocations.stream()
+                .filter(item -> allocationKey.equals(item.getAllocationKey()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("分摊信息不存在"));
+    }
+
+    /**
+     * 构造“修改后”的分摊列表，用于执行整体验证。
+     */
+    private List<ReimbursementDto.CostAllocation> buildValidatedCostAllocationList(
+            List<ReimbursementCostAllocation> allocations,
+            String allocationKey,
+            ReimbursementDto.CostAllocation newValue) {
+        List<ReimbursementDto.CostAllocation> allocationDtos = allocations.stream()
+                .map(this::toCostAllocationDto)
+                .toList();
+        ReimbursementDto.CostAllocation targetDto = allocationDtos.stream()
+                .filter(item -> allocationKey.equals(item.getId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("分摊信息不存在"));
+        applyCostAllocationChange(targetDto, newValue);
+        return allocationDtos;
+    }
+
+    private ReimbursementTravelRecord getTravelRecordEntity(Long reimbursementId, String recordKey) {
+        ReimbursementTravelRecord record = travelRecordMapper.selectOne(
+                new LambdaQueryWrapper<ReimbursementTravelRecord>()
+                        .eq(ReimbursementTravelRecord::getReimbursementId, reimbursementId)
+                        .eq(ReimbursementTravelRecord::getRecordKey, recordKey));
+        if (record == null) {
+            throw new IllegalArgumentException("补录行程不存在");
+        }
+        return record;
+    }
+
+    private ReimbursementTravelRecord toTravelRecordEntity(Long reimbursementId, ReimbursementDto.TravelRecord dto) {
+        ReimbursementTravelRecord entity = new ReimbursementTravelRecord();
+        entity.setReimbursementId(reimbursementId);
+        applyTravelRecordChange(entity, dto);
+        return entity;
+    }
+
+    private ReimbursementDto.TravelRecord toTravelRecordDto(ReimbursementTravelRecord record) {
+        ReimbursementDto.TravelRecord item = new ReimbursementDto.TravelRecord();
+        item.setId(record.getRecordKey());
+        item.setReimburserId(record.getReimburserId());
+        item.setReimburserName(record.getReimburserName());
+        item.setReimburserNo(record.getReimburserNo());
+        item.setDepartureCityId(record.getDepartureCityId());
+        item.setDepartureCityName(record.getDepartureCityName());
+        item.setArrivalCityId(record.getArrivalCityId());
+        item.setArrivalCityName(record.getArrivalCityName());
+        if (record.getDepartureDate() != null) {
+            item.setDepartureDate(record.getDepartureDate().format(DATE_FMT));
+        }
+        if (record.getArrivalDate() != null) {
+            item.setArrivalDate(record.getArrivalDate().format(DATE_FMT));
+        }
+        item.setDescription(record.getDescription());
+        return item;
+    }
+
+    private void applyTravelRecordChange(ReimbursementTravelRecord target, ReimbursementDto.TravelRecord source) {
+        target.setRecordKey(source.getId());
+        target.setReimburserId(source.getReimburserId());
+        target.setReimburserName(source.getReimburserName());
+        target.setReimburserNo(source.getReimburserNo());
+        target.setDepartureCityId(source.getDepartureCityId());
+        target.setDepartureCityName(source.getDepartureCityName());
+        target.setArrivalCityId(source.getArrivalCityId());
+        target.setArrivalCityName(source.getArrivalCityName());
+        target.setDepartureDate(source.getDepartureDate() != null ? LocalDate.parse(source.getDepartureDate()) : null);
+        target.setArrivalDate(source.getArrivalDate() != null ? LocalDate.parse(source.getArrivalDate()) : null);
+        target.setDescription(source.getDescription());
+    }
+
+    private ReimbursementDto.TravelRecord mergeTravelRecordDraft(
+            ReimbursementDto.TravelRecord existing,
+            ReimbursementDto.TravelRecord incoming) {
+        ReimbursementDto.TravelRecord merged = new ReimbursementDto.TravelRecord();
+        merged.setId(existing.getId());
+        merged.setReimburserId(incoming.getReimburserId() != null ? incoming.getReimburserId() : existing.getReimburserId());
+        merged.setReimburserName(incoming.getReimburserName() != null ? incoming.getReimburserName() : existing.getReimburserName());
+        merged.setReimburserNo(incoming.getReimburserNo() != null ? incoming.getReimburserNo() : existing.getReimburserNo());
+        merged.setDepartureCityId(incoming.getDepartureCityId() != null ? incoming.getDepartureCityId() : existing.getDepartureCityId());
+        merged.setDepartureCityName(incoming.getDepartureCityName() != null ? incoming.getDepartureCityName() : existing.getDepartureCityName());
+        merged.setArrivalCityId(incoming.getArrivalCityId() != null ? incoming.getArrivalCityId() : existing.getArrivalCityId());
+        merged.setArrivalCityName(incoming.getArrivalCityName() != null ? incoming.getArrivalCityName() : existing.getArrivalCityName());
+        merged.setDepartureDate(incoming.getDepartureDate() != null ? incoming.getDepartureDate() : existing.getDepartureDate());
+        merged.setArrivalDate(incoming.getArrivalDate() != null ? incoming.getArrivalDate() : existing.getArrivalDate());
+        merged.setDescription(incoming.getDescription() != null ? incoming.getDescription() : existing.getDescription());
+        return merged;
+    }
+
+    private void validateTravelRecordList(List<ReimbursementDto.TravelRecord> travelRecords) {
+        ReimbursementDto dto = new ReimbursementDto();
+        dto.setTravelRecords(travelRecords);
+        validator.validateForSave(dto);
+    }
+
+    /**
+     * 合并当前分摊行已有值与本次请求值，避免未传字段被覆盖成空。
+     */
+    private ReimbursementDto.CostAllocation mergeCostAllocationDraft(
+            ReimbursementDto.CostAllocation existing,
+            ReimbursementDto.CostAllocation incoming) {
+        ReimbursementDto.CostAllocation merged = new ReimbursementDto.CostAllocation();
+        merged.setId(existing.getId());
+        merged.setCompanyId(incoming.getCompanyId() != null ? incoming.getCompanyId() : existing.getCompanyId());
+        merged.setCompanyName(incoming.getCompanyName() != null ? incoming.getCompanyName() : existing.getCompanyName());
+        merged.setCompanyNo(incoming.getCompanyNo() != null ? incoming.getCompanyNo() : existing.getCompanyNo());
+        merged.setProjectId(incoming.getProjectId() != null ? incoming.getProjectId() : existing.getProjectId());
+        merged.setProjectName(incoming.getProjectName() != null ? incoming.getProjectName() : existing.getProjectName());
+        merged.setProjectNo(incoming.getProjectNo() != null ? incoming.getProjectNo() : existing.getProjectNo());
+        merged.setRatio(incoming.getRatio() != null ? incoming.getRatio() : existing.getRatio());
+        merged.setAmount(incoming.getAmount() != null ? incoming.getAmount() : existing.getAmount());
+        return merged;
+    }
+
+    /**
+     * 按首行联动规则重算整张分摊表。
+     */
+    private void recalculateCostAllocationRows(
+            List<ReimbursementCostAllocation> allocations,
+            double totalAllowanceAmount) {
+        if (allocations == null || allocations.isEmpty()) {
+            return;
+        }
+
+        if (allocations.size() == 1) {
+            ReimbursementCostAllocation first = allocations.get(0);
+            first.setRatio(toRatioDecimal(1D));
+            first.setAmount(toAmountDecimal(totalAllowanceAmount));
+            return;
+        }
+
+        double otherRatioSum = 0D;
+        double otherAmountSum = 0D;
+        for (int i = 1; i < allocations.size(); i++) {
+            ReimbursementCostAllocation allocation = allocations.get(i);
+            otherRatioSum += allocation.getRatio() != null ? allocation.getRatio().doubleValue() : 0D;
+            otherAmountSum += allocation.getAmount() != null ? allocation.getAmount().doubleValue() : 0D;
+        }
+
+        if (otherRatioSum > 1.0001D) {
+            throw new IllegalArgumentException("除首行外分摊比例合计不能超过100%");
+        }
+        if (otherAmountSum - totalAllowanceAmount > 0.01D) {
+            throw new IllegalArgumentException("除首行外分摊金额合计不能超过补助总金额");
+        }
+
+        ReimbursementCostAllocation first = allocations.get(0);
+        first.setRatio(toRatioDecimal(Math.max(0D, 1D - otherRatioSum)));
+        first.setAmount(toAmountDecimal(totalAllowanceAmount - otherAmountSum));
+    }
+
+    /**
+     * 当整张分摊表已经填写完整时，执行最终的整表校验。
+     */
+    private void validateCostAllocationListIfComplete(
+            List<ReimbursementCostAllocation> allocations,
+            double totalAllowanceAmount) {
+        List<ReimbursementDto.CostAllocation> allocationDtos = allocations.stream()
+                .map(this::toCostAllocationDto)
+                .toList();
+        if (isCostAllocationListReadyForAggregateValidation(allocationDtos)) {
+            validator.validateCostAllocations(allocationDtos, totalAllowanceAmount);
+        }
+    }
+
+    /**
+     * 将当前分摊实体列表批量更新回数据库。
+     */
+    private void updateCostAllocationEntities(List<ReimbursementCostAllocation> allocations) {
+        for (ReimbursementCostAllocation allocation : allocations) {
+            costAllocationMapper.updateById(allocation);
+        }
+    }
+
+    private double getTotalAllowanceAmount(ReimbursementRecord record) {
+        return record.getTotalAllowanceAmount() != null
+                ? record.getTotalAllowanceAmount().doubleValue()
+                : 0D;
+    }
+
+    /**
+     * 校验单条分摊行的草稿数据，允许整张分摊表尚未填写完整。
+     */
+    private void validateCostAllocationDraft(ReimbursementDto.CostAllocation allocation) {
+        if (allocation == null) {
+            throw new IllegalArgumentException("分摊信息不能为空");
+        }
+        if (hasAnyText(allocation.getCompanyId(), allocation.getCompanyName(), allocation.getCompanyNo())
+                && !hasAllText(allocation.getCompanyId(), allocation.getCompanyName(), allocation.getCompanyNo())) {
+            throw new IllegalArgumentException("请选择完整的归属公司信息");
+        }
+        if (hasAnyText(allocation.getProjectId(), allocation.getProjectName(), allocation.getProjectNo())
+                && !hasAllText(allocation.getProjectId(), allocation.getProjectName(), allocation.getProjectNo())) {
+            throw new IllegalArgumentException("请选择完整的归属项目信息");
+        }
+        if (allocation.getRatio() != null && (allocation.getRatio() < 0 || allocation.getRatio() > 1)) {
+            throw new IllegalArgumentException("分摊比例必须在0到1之间");
+        }
+        if (allocation.getAmount() != null && allocation.getAmount() < 0) {
+            throw new IllegalArgumentException("分摊金额不能小于0");
+        }
+    }
+
+    /**
+     * 仅当所有分摊行都已具备完整字段时，才适合执行整表合计校验。
+     */
+    private boolean isCostAllocationListReadyForAggregateValidation(
+            List<ReimbursementDto.CostAllocation> allocations) {
+        if (allocations == null || allocations.isEmpty()) {
+            return false;
+        }
+        return allocations.stream().allMatch(this::isCompleteCostAllocation);
+    }
+
+    /**
+     * 判断单条分摊记录是否已经填写完整。
+     */
+    private boolean isCompleteCostAllocation(ReimbursementDto.CostAllocation allocation) {
+        return allocation != null
+                && hasAllText(allocation.getCompanyId(), allocation.getCompanyName(), allocation.getCompanyNo())
+                && hasAllText(allocation.getProjectId(), allocation.getProjectName(), allocation.getProjectNo())
+                && allocation.getRatio() != null
+                && allocation.getAmount() != null;
+    }
+
+    private boolean hasAnyText(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasAllText(String... values) {
+        for (String value : values) {
+            if (!StringUtils.hasText(value)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private BigDecimal toRatioDecimal(double value) {
+        return BigDecimal.valueOf(value).setScale(4, RoundingMode.HALF_EVEN);
+    }
+
+    private BigDecimal toAmountDecimal(double value) {
+        return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_EVEN);
+    }
+
+    /**
+     * 将新的分摊字段值写入 DTO 对象。
+     */
+    private void applyCostAllocationChange(
+            ReimbursementDto.CostAllocation target,
+            ReimbursementDto.CostAllocation source) {
+        target.setCompanyId(source.getCompanyId());
+        target.setCompanyName(source.getCompanyName());
+        target.setCompanyNo(source.getCompanyNo());
+        target.setProjectId(source.getProjectId());
+        target.setProjectName(source.getProjectName());
+        target.setProjectNo(source.getProjectNo());
+        target.setRatio(source.getRatio());
+        target.setAmount(source.getAmount());
+    }
+
+    /**
+     * 将新的分摊字段值写入数据库实体对象。
+     */
+    private void applyCostAllocationChange(
+            ReimbursementCostAllocation target,
+            ReimbursementDto.CostAllocation source) {
+        target.setCompanyId(source.getCompanyId());
+        target.setCompanyName(source.getCompanyName());
+        target.setCompanyNo(source.getCompanyNo());
+        target.setProjectId(source.getProjectId());
+        target.setProjectName(source.getProjectName());
+        target.setProjectNo(source.getProjectNo());
+        target.setRatio(source.getRatio() != null ? BigDecimal.valueOf(source.getRatio()) : null);
+        target.setAmount(source.getAmount() != null ? BigDecimal.valueOf(source.getAmount()) : null);
     }
 
     /**

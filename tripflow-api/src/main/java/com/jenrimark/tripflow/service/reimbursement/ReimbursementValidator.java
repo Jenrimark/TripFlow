@@ -35,6 +35,16 @@ public class ReimbursementValidator {
         }
     }
 
+    public void validateCostAllocations(
+            List<ReimbursementDto.CostAllocation> costAllocations,
+            Double totalAllowanceAmount) {
+        List<String> errors = new ArrayList<>();
+        validateCostAllocations(costAllocations, totalAllowanceAmount, errors);
+        if (!errors.isEmpty()) {
+            throw new IllegalArgumentException(errors.get(0));
+        }
+    }
+
     private List<String> collectErrors(ReimbursementDto dto, boolean submit) {
         List<String> errors = new ArrayList<>();
         if (dto == null) {
@@ -207,11 +217,18 @@ public class ReimbursementValidator {
     }
 
     private void validateCostAllocations(ReimbursementDto dto, List<String> errors) {
-        if (dto.getCostAllocations() == null || dto.getCostAllocations().isEmpty()) {
+        validateCostAllocations(dto.getCostAllocations(), dto.getTotalAllowanceAmount(), errors);
+    }
+
+    private void validateCostAllocations(
+            List<ReimbursementDto.CostAllocation> costAllocations,
+            Double totalAllowanceAmount,
+            List<String> errors) {
+        if (costAllocations == null || costAllocations.isEmpty()) {
             return;
         }
 
-        for (ReimbursementDto.CostAllocation allocation : dto.getCostAllocations()) {
+        for (ReimbursementDto.CostAllocation allocation : costAllocations) {
             if (allocation == null) {
                 errors.add("分摊信息不能为空");
                 return;
@@ -246,7 +263,7 @@ public class ReimbursementValidator {
             }
         }
 
-        double ratioSum = dto.getCostAllocations().stream()
+        double ratioSum = costAllocations.stream()
                 .mapToDouble(a -> a.getRatio() != null ? a.getRatio() : 0D)
                 .sum();
         if (Math.abs(ratioSum - 1.0) > 0.0001) {
@@ -254,8 +271,8 @@ public class ReimbursementValidator {
             return;
         }
 
-        double totalAllowance = dto.getTotalAllowanceAmount() != null ? dto.getTotalAllowanceAmount() : 0D;
-        double allocationSum = dto.getCostAllocations().stream()
+        double totalAllowance = totalAllowanceAmount != null ? totalAllowanceAmount : 0D;
+        double allocationSum = costAllocations.stream()
                 .mapToDouble(a -> a.getAmount() != null ? a.getAmount() : 0D)
                 .sum();
         if (Math.abs(allocationSum - totalAllowance) > 0.01) {
