@@ -1,6 +1,9 @@
 package com.jenrimark.tripflow.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.jenrimark.tripflow.dto.calendar.AllowanceCalendarAddResult;
+import com.jenrimark.tripflow.dto.calendar.AllowanceCalendarDto;
+import com.jenrimark.tripflow.dto.calendar.AllowanceCalendarRequest;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementAllowanceGenerateResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementExpenseSummaryResult;
@@ -70,4 +73,17 @@ public interface ReimbursementService extends IService<ReimbursementRecord> {
     void submit(Long id, Long version);
 
     void voidDocument(Long id, Long version);
+
+    List<AllowanceCalendarDto> listAllowanceCalendars(Long reimbursementId, Long allowanceId);
+
+    AllowanceCalendarAddResult addAllowanceCalendar(
+            Long reimbursementId, Long allowanceId, Long version, AllowanceCalendarRequest request);
+
+    AllowanceCalendarDto updateAllowanceCalendar(
+            Long reimbursementId, Long allowanceId, Long calendarId, Long version, AllowanceCalendarRequest request);
+
+    List<AllowanceCalendarDto> batchUpdateAllowanceCalendars(
+            Long reimbursementId, Long allowanceId, Long version, List<AllowanceCalendarRequest> items);
+
+    void deleteAllowanceCalendar(Long reimbursementId, Long allowanceId, Long calendarId, Long version);
 }
