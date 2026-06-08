@@ -1,5 +1,6 @@
 package com.jenrimark.tripflow.controller;
 
+import com.jenrimark.tripflow.annotation.RateLimit;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementAllowanceGenerateResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementExpenseSummaryResult;
@@ -27,6 +28,7 @@ public class ReimbursementController {
      * 查询报销单列表。
      */
     @GetMapping
+    @RateLimit(keyPrefix = "reimbursement-list", windowSeconds = 60, maxRequests = 60)
     public ReimbursementListResult list(
             @RequestParam(required = false) String documentNo,
             @RequestParam(required = false) String title,
@@ -45,6 +47,7 @@ public class ReimbursementController {
      * 查询指定报销单详情。
      */
     @GetMapping("/{id}")
+    @RateLimit(keyPrefix = "reimbursement-detail", windowSeconds = 60, maxRequests = 120)
     public ReimbursementDto detail(@PathVariable Long id) {
         return wrap(() -> reimbursementService.getDetail(id));
     }
@@ -53,6 +56,7 @@ public class ReimbursementController {
      * 计算指定报销单的费用合计。
      */
     @GetMapping("/{id}/expense-summary")
+    @RateLimit(keyPrefix = "reimbursement-expense-summary", windowSeconds = 60, maxRequests = 120)
     public ReimbursementExpenseSummaryResult expenseSummary(@PathVariable Long id) {
         return wrap(() -> reimbursementService.calculateExpenseSummary(id));
     }

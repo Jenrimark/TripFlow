@@ -1,5 +1,6 @@
 package com.jenrimark.tripflow.controller;
 
+import com.jenrimark.tripflow.annotation.RateLimit;
 import com.jenrimark.tripflow.dto.master.ReimburserVo;
 import com.jenrimark.tripflow.entity.BusinessType;
 import com.jenrimark.tripflow.entity.City;
@@ -26,31 +27,37 @@ public class MasterDataController {
     }
 
     @GetMapping("/companies")
+    @RateLimit(keyPrefix = "master-companies", windowSeconds = 60, maxRequests = 120)
     public List<ReimCompany> companies() {
         return masterDataService.listCompanies();
     }
 
     @GetMapping("/departments")
+    @RateLimit(keyPrefix = "master-departments", windowSeconds = 60, maxRequests = 120)
     public List<ReimDepartment> departments() {
         return masterDataService.listDepartments();
     }
 
     @GetMapping("/reimbursers")
+    @RateLimit(keyPrefix = "master-reimbursers", windowSeconds = 60, maxRequests = 120)
     public List<ReimburserVo> reimbursers() {
         return masterDataService.listReimbursers();
     }
 
     @GetMapping("/business-types")
+    @RateLimit(keyPrefix = "master-business-types", windowSeconds = 60, maxRequests = 120)
     public List<BusinessType> businessTypes() {
         return masterDataService.listBusinessTypes();
     }
 
     @GetMapping("/cities")
+    @RateLimit(keyPrefix = "master-cities", windowSeconds = 60, maxRequests = 120)
     public List<City> cities() {
         return masterDataService.listCities();
     }
 
     @GetMapping("/projects")
+    @RateLimit(keyPrefix = "master-projects", windowSeconds = 60, maxRequests = 120)
     public List<Project> projects() {
         return masterDataService.listProjects();
     }
