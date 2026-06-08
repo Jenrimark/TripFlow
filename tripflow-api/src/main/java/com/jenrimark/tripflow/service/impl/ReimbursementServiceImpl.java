@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jenrimark.tripflow.config.TripflowCacheKeys;
+import com.jenrimark.tripflow.config.TripflowCacheNames;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementAllowanceGenerateResult;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementDto;
 import com.jenrimark.tripflow.dto.reimbursement.ReimbursementExpenseSummaryResult;
@@ -24,8 +26,10 @@ import com.jenrimark.tripflow.mapper.ReimbursementMapper;
 import com.jenrimark.tripflow.mapper.ReimbursementTravelRecordMapper;
 import com.jenrimark.tripflow.service.ReimbursementService;
 import com.jenrimark.tripflow.service.reimbursement.ReimbursementAllowanceGenerationService;
+import com.jenrimark.tripflow.service.reimbursement.ReimbursementCacheService;
 import com.jenrimark.tripflow.service.reimbursement.ReimbursementChildRecordService;
 import com.jenrimark.tripflow.service.reimbursement.ReimbursementValidator;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -49,6 +53,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     private final ObjectMapper objectMapper;
     private final ReimbursementValidator validator;
     private final ReimbursementAllowanceGenerationService allowanceGenerationService;
+    private final ReimbursementCacheService reimbursementCacheService;
     private final ReimbursementChildRecordService childRecordService;
     private final ReimbursementAllowanceMapper allowanceMapper;
     private final ReimbursementAllowanceCalendarMapper calendarMapper;
@@ -62,6 +67,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             ObjectMapper objectMapper,
             ReimbursementValidator validator,
             ReimbursementAllowanceGenerationService allowanceGenerationService,
+            ReimbursementCacheService reimbursementCacheService,
             ReimbursementChildRecordService childRecordService,
             ReimbursementAllowanceMapper allowanceMapper,
             ReimbursementAllowanceCalendarMapper calendarMapper,
@@ -70,6 +76,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         this.objectMapper = objectMapper;
         this.validator = validator;
         this.allowanceGenerationService = allowanceGenerationService;
+        this.reimbursementCacheService = reimbursementCacheService;
         this.childRecordService = childRecordService;
         this.allowanceMapper = allowanceMapper;
         this.calendarMapper = calendarMapper;
@@ -104,6 +111,11 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      * 按条件分页查询报销单列表。
      */
     @Override
+    @Cacheable(
+            cacheNames = TripflowCacheNames.REIMBURSEMENT_LIST,
+            key = "T(com.jenrimark.tripflow.config.TripflowCacheKeys).reimbursementListKey("
+                    + "#documentNo, #title, #reason, #companyIds, #departmentIds, "
+                    + "#reimburserIds, #businessTypeIds, #page, #pageSize)")
     public ReimbursementListResult list(
             String documentNo,
             String title,
@@ -152,6 +164,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
      * 查询指定报销单详情，并将存储内容转换为前端使用的 DTO。
      */
     @Override
+    @Cacheable(cacheNames = TripflowCacheNames.REIMBURSEMENT_DETAIL, key = "#id")
     public ReimbursementDto getDetail(Long id) {
         ReimbursementRecord record = getById(id);
         if (record == null) {
@@ -168,6 +181,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     public ReimbursementDto create(ReimbursementDto dto) {
         // 校验报销单数据（保存级别）
         validator.validateForSave(dto);
+        beginReimbursementListCacheDoubleDelete();  // 删除缓存
         // 创建主表对象
         ReimbursementRecord record = new ReimbursementRecord();
         // 生成报销单号
@@ -182,6 +196,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         applyDtoToRecord(dto, record);
         // 保存到主表reimbursement
         save(record);
+        beginReimbursementDetailCacheDoubleDelete(record.getId());
         // 保存子表数据（补录行程，补助信息，补助日历，费用分摊）
         childRecordService.replaceChildRecords(record.getId(), dto);
         return rebuildSnapshotAndLoadDetail(record.getId());
@@ -202,6 +217,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         // 校验报销单数据
         validator.validateForSave(dto);
         assertVersionMatches(record, dto.getVersion());
+        beginReimbursementCacheDoubleDelete(id);
         record.setUpdatedAt(LocalDateTime.now());
         applyDtoToRecord(dto, record);
         // 更新主表数据
@@ -223,6 +239,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         validator.validateRemark(remark);
         Long version = request != null ? request.getVersion() : null;
         assertVersionMatches(record, version);
+        beginReimbursementCacheDoubleDelete(id);
 
         // 更新备注
         record.setRemark(remark);
@@ -243,6 +260,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     public ReimbursementDto clearRemark(Long id, Long version) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
         assertVersionMatches(record, version);
+        beginReimbursementCacheDoubleDelete(id);
         record.setRemark(null);
         record.setUpdatedAt(LocalDateTime.now());
         ReimbursementDto snapshot = toListDto(record);
@@ -266,6 +284,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         if (dto.getTravelRecords() == null || dto.getTravelRecords().isEmpty()) {
             throw new IllegalArgumentException("请先填写补录行程");
         }
+        beginReimbursementCacheDoubleDelete(id);
 
         // 计算补助信息
         dto.setAllowances(allowanceGenerationService.generate(dto.getTravelRecords()));
@@ -349,6 +368,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         if (allocations.isEmpty()) {
             throw new IllegalArgumentException("请至少添加一条分摊信息");
         }
+        beginReimbursementCacheDoubleDelete(id);
 
         int count = allocations.size();
         double totalAmount = getTotalAllowanceAmount(record);
@@ -379,6 +399,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             ReimbursementDto.CostAllocation costAllocation) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
         assertVersionMatches(record, version);
+        beginReimbursementCacheDoubleDelete(id);
         ReimbursementDto.CostAllocation newAllocation = createInitialCostAllocation(costAllocation);
         long existingCount = costAllocationMapper.selectCount(
                 new LambdaQueryWrapper<ReimbursementCostAllocation>()
@@ -420,6 +441,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         if (costAllocation == null) {
             throw new IllegalArgumentException("分摊信息不能为空");
         }
+        beginReimbursementCacheDoubleDelete(id);
 
         // 查询当前报销单下的全部分摊行，并定位要修改的目标记录
         List<ReimbursementCostAllocation> allocations = loadCostAllocationEntities(id);
@@ -454,6 +476,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         if (allocations.size() <= 1) {
             throw new IllegalArgumentException("至少保留一条分摊信息");
         }
+        beginReimbursementCacheDoubleDelete(id);
 
         ReimbursementCostAllocation target = findCostAllocationEntity(allocations, allocationKey);
 
@@ -504,6 +527,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         if (!StringUtils.hasText(travelRecord.getId())) {
             travelRecord.setId("travel_" + System.currentTimeMillis());
         }
+        beginReimbursementCacheDoubleDelete(id);
 
         List<ReimbursementDto.TravelRecord> travelRecords = childRecordService.loadTravelRecords(id);
         travelRecords.add(travelRecord);
@@ -531,6 +555,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         if (travelRecord == null) {
             throw new IllegalArgumentException("补录行程不能为空");
         }
+        beginReimbursementCacheDoubleDelete(id);
 
         ReimbursementTravelRecord existing = getTravelRecordEntity(id, recordKey);
         ReimbursementDto.TravelRecord mergedTravelRecord = mergeTravelRecordDraft(toTravelRecordDto(existing), travelRecord);
@@ -558,6 +583,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         ReimbursementRecord record = getExistingReimbursementRecord(id);
         assertVersionMatches(record, version);
         getTravelRecordEntity(id, recordKey);
+        beginReimbursementCacheDoubleDelete(id);
 
         List<ReimbursementAllowance> allowances = allowanceMapper.selectList(
                 new LambdaQueryWrapper<ReimbursementAllowance>()
@@ -587,6 +613,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
     public void delete(Long id, Long version) {
         ReimbursementRecord record = getExistingReimbursementRecord(id);
         assertVersionMatches(record, version);
+        beginReimbursementCacheDoubleDelete(id);
         childRecordService.deleteChildRecords(id);
         int deleted = baseMapper.delete(new LambdaQueryWrapper<ReimbursementRecord>()
                 .eq(ReimbursementRecord::getId, id)
@@ -607,6 +634,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             throw new IllegalArgumentException("报销单不存在");
         }
         assertVersionMatches(record, version);
+        beginReimbursementCacheDoubleDelete(id);
         ReimbursementDto dto = toDto(record);
         validator.validateForSubmit(dto);
         record.setStatus(1);
@@ -626,6 +654,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
             throw new IllegalArgumentException("报销单不存在");
         }
         assertVersionMatches(record, version);
+        beginReimbursementCacheDoubleDelete(id);
         record.setStatus(2);
         record.setUpdatedAt(LocalDateTime.now());
         updateRecordWithVersionCheck(record, version);
@@ -770,6 +799,28 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("报销单数据序列化失败", e);
         }
+    }
+
+    /**
+     * 对报销单列表缓存执行双删，降低列表查询读到旧缓存的概率。
+     */
+    private void beginReimbursementListCacheDoubleDelete() {
+        reimbursementCacheService.doubleDeleteReimbursementListCache();
+    }
+
+    /**
+     * 对指定报销单详情缓存执行双删，降低详情页读到旧缓存的概率。
+     */
+    private void beginReimbursementDetailCacheDoubleDelete(Long id) {
+        reimbursementCacheService.doubleDeleteReimbursementDetailCache(id);
+    }
+
+    /**
+     * 对报销单列表和当前报销单详情一起执行双删。
+     */
+    private void beginReimbursementCacheDoubleDelete(Long id) {
+        beginReimbursementListCacheDoubleDelete();
+        beginReimbursementDetailCacheDoubleDelete(id);
     }
 
     /**

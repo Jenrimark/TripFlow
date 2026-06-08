@@ -1,6 +1,7 @@
 package com.jenrimark.tripflow.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.jenrimark.tripflow.config.TripflowCacheNames;
 import com.jenrimark.tripflow.dto.master.ReimburserVo;
 import com.jenrimark.tripflow.entity.BusinessType;
 import com.jenrimark.tripflow.entity.City;
@@ -15,6 +16,7 @@ import com.jenrimark.tripflow.mapper.ReimCompanyMapper;
 import com.jenrimark.tripflow.mapper.ReimDepartmentMapper;
 import com.jenrimark.tripflow.mapper.ReimburserMapper;
 import com.jenrimark.tripflow.service.MasterDataService;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -47,18 +49,21 @@ public class MasterDataServiceImpl implements MasterDataService {
     }
 
     @Override
+    @Cacheable(cacheNames = TripflowCacheNames.MASTER_COMPANIES, key = "'all'")
     public List<ReimCompany> listCompanies() {
         return companyMapper.selectList(new LambdaQueryWrapper<ReimCompany>()
                 .orderByAsc(ReimCompany::getReimCompanyNo));
     }
 
     @Override
+    @Cacheable(cacheNames = TripflowCacheNames.MASTER_DEPARTMENTS, key = "'all'")
     public List<ReimDepartment> listDepartments() {
         return departmentMapper.selectList(new LambdaQueryWrapper<ReimDepartment>()
                 .orderByAsc(ReimDepartment::getReimDepartmentNo));
     }
 
     @Override
+    @Cacheable(cacheNames = TripflowCacheNames.MASTER_REIMBURSERS, key = "'all'")
     public List<ReimburserVo> listReimbursers() {
         Map<String, ReimDepartment> deptMap = departmentMapper.selectList(null).stream()
                 .collect(Collectors.toMap(ReimDepartment::getReimDepartmentId, d -> d));
@@ -70,18 +75,21 @@ public class MasterDataServiceImpl implements MasterDataService {
     }
 
     @Override
+    @Cacheable(cacheNames = TripflowCacheNames.MASTER_BUSINESS_TYPES, key = "'all'")
     public List<BusinessType> listBusinessTypes() {
         return businessTypeMapper.selectList(new LambdaQueryWrapper<BusinessType>()
                 .orderByAsc(BusinessType::getBusinessTypeNo));
     }
 
     @Override
+    @Cacheable(cacheNames = TripflowCacheNames.MASTER_CITIES, key = "'all'")
     public List<City> listCities() {
         return cityMapper.selectList(new LambdaQueryWrapper<City>()
                 .orderByAsc(City::getCityNo));
     }
 
     @Override
+    @Cacheable(cacheNames = TripflowCacheNames.MASTER_PROJECTS, key = "'all'")
     public List<Project> listProjects() {
         return projectMapper.selectList(new LambdaQueryWrapper<Project>()
                 .orderByAsc(Project::getProjectNo));
