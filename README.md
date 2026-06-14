@@ -8,9 +8,10 @@
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | Vue 3 · TypeScript · Vite 7 · Element Plus · Pinia · Vue Router |
+| 前端 | Vue 3 · TypeScript · Vite 8 · Element Plus · Pinia · Vue Router |
 | 后端 | Spring Boot 3.5 · Java 17 · MyBatis-Plus · Spring Data JPA |
 | 数据库 | MySQL 8 |
+| 缓存 | Redis 8（本地开发 / 云服务器均可，可选） |
 | 工具 | Maven Wrapper · ESLint · Oxlint · Prettier |
 
 ## 项目结构
@@ -43,6 +44,7 @@ TripFlow/
 - **Node.js** `^20.19.0` 或 `>=22.12.0`
 - **Java** 17+
 - **MySQL** 8.x
+- **Redis** 8.x（本地开发推荐；不安装则自动降级为内存缓存）
 - **Maven**（或使用 `tripflow-api/mvnw`）
 
 ## 本地开发
@@ -63,6 +65,12 @@ MYSQL_PORT=3306
 MYSQL_DATABASE=tripflow
 MYSQL_USER=root
 MYSQL_PASSWORD=你的密码
+
+REDIS_HOST=localhost          # 本地 Redis 或远程地址
+REDIS_PORT=6379
+REDIS_PASSWORD=               # 无密码留空
+REDIS_DATABASE=0
+CACHE_TYPE=redis              # redis=使用 Redis 缓存；simple=纯内存缓存
 
 API_SERVER_PORT=8080
 VITE_API_PROXY_TARGET=http://localhost:8080
@@ -96,6 +104,18 @@ python3 scripts/generate_reimbursement_seed.py
 
 ### 3. 启动后端
 
+
+确保 Redis 已运行（`redis-cli ping` 应返回 `PONG`）：
+
+```bash
+# macOS（Homebrew）
+brew services start redis
+
+# Linux（systemd）
+sudo systemctl start redis
+
+
+```
 ```bash
 cd tripflow-api
 ./mvnw spring-boot:run
@@ -218,6 +238,34 @@ cd tripflow-api && ./mvnw test
 2. MySQL 配置 `bind-address = 0.0.0.0`，创建远程用户并授权
 3. 将 `.env` 中 `MYSQL_HOST` 改为 ECS 公网/内网地址
 4. 在本地执行上述 SQL 初始化脚本时加上对应 `-h` 参数
+
+
+## 本地 Redis
+
+Redis 用于缓存主数据、报销单列表和 IP 限流。代码已做降级处理：Redis 不可用时自动回退到内存缓存，限流拦截器放行请求。
+
+**本地开发（推荐）**
+
+```bash
+# macOS
+brew install redis
+brew services start redis
+
+# Ubuntu / Debian
+sudo apt install redis-server
+sudo systemctl start redis
+```
+
+`.env` 中 `REDIS_HOST=localhost`，`CACHE_TYPE=redis`。
+
+**云服务器**
+
+若将 Redis 部署到 ECS（如 `8.134.34.169`），需：
+
+1. 安装 Redis 并设置密码（`requirepass`）
+2. 安全组开放 **6379** 端口（建议限制来源 IP）
+3. `.env` 中 `REDIS_HOST=8.134.34.169`，`REDIS_PASSWORD=你的密码`
+
 
 ## 后续规划
 
