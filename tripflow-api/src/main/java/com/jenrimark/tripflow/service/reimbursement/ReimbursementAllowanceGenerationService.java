@@ -60,7 +60,7 @@ public class ReimbursementAllowanceGenerationService {
             return cityMap;
         }
 
-        List<City> cities = cityMapper.selectBatchIds(cityIds);
+        List<City> cities = cityMapper.selectByIds(cityIds);
         for (City city : cities) {
             cityMap.put(city.getCityNo(), city);
         }
