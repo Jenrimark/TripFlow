@@ -52,6 +52,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         implements ReimbursementService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ObjectMapper objectMapper;
     private final ReimbursementValidator validator;
@@ -970,6 +971,12 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         if (record.getArrivalDate() != null) {
             item.setArrivalDate(record.getArrivalDate().format(DATE_FMT));
         }
+        if (record.getDepartureDatetime() != null) {
+            item.setDepartureDatetime(record.getDepartureDatetime().format(DATETIME_FMT));
+        }
+        if (record.getArrivalDatetime() != null) {
+            item.setArrivalDatetime(record.getArrivalDatetime().format(DATETIME_FMT));
+        }
         item.setDescription(record.getDescription());
         return item;
     }
@@ -985,6 +992,8 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         target.setArrivalCityName(source.getArrivalCityName());
         target.setDepartureDate(source.getDepartureDate() != null ? LocalDate.parse(source.getDepartureDate()) : null);
         target.setArrivalDate(source.getArrivalDate() != null ? LocalDate.parse(source.getArrivalDate()) : null);
+        target.setDepartureDatetime(source.getDepartureDatetime() != null ? LocalDateTime.parse(source.getDepartureDatetime(), DATETIME_FMT) : null);
+        target.setArrivalDatetime(source.getArrivalDatetime() != null ? LocalDateTime.parse(source.getArrivalDatetime(), DATETIME_FMT) : null);
         target.setDescription(source.getDescription());
     }
 

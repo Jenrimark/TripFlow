@@ -104,6 +104,8 @@ CREATE TABLE IF NOT EXISTS reimbursement_travel_record (
     arrival_city_name   VARCHAR(64)  NOT NULL,
     departure_date      DATE         NOT NULL,
     arrival_date        DATE         NOT NULL,
+    departure_datetime  DATETIME     DEFAULT NULL COMMENT '出发时间',
+    arrival_datetime    DATETIME     DEFAULT NULL COMMENT '到达时间',
     description         VARCHAR(500) DEFAULT NULL,
     created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_travel_reimbursement (reimbursement_id),

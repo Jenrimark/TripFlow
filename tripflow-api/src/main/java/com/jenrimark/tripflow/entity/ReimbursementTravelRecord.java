@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @TableName("reimbursement_travel_record")
@@ -24,5 +25,7 @@ public class ReimbursementTravelRecord {
     private String arrivalCityName;
     private LocalDate departureDate;
     private LocalDate arrivalDate;
+    private LocalDateTime departureDatetime;
+    private LocalDateTime arrivalDatetime;
     private String description;
 }

@@ -53,6 +53,8 @@ public class ReimbursementDto {
         private String arrivalCityName;
         private String departureDate;
         private String arrivalDate;
+        private String departureDatetime;
+        private String arrivalDatetime;
         private String description;
     }
 

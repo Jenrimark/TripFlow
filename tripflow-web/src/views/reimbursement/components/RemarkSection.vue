@@ -10,7 +10,7 @@
         v-model="remark"
         type="textarea"
         placeholder="请输入备注信息"
-        maxlength="1000"
+        maxlength="500"
         show-word-limit
         :rows="4"
         :disabled="isViewMode"
@@ -58,7 +58,7 @@ function handleClear() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
+  padding: 10px 20px;
   border-bottom: 1px solid #ebeef5;
 }
 

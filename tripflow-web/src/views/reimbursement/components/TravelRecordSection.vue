@@ -1,22 +1,27 @@
 <template>
   <div class="travel-record-section">
-    <div class="section-header">
+    <div class="section-header" @click="toggleExpanded">
       <span class="section-title">补录行程</span>
-      <el-button v-if="!isViewMode" type="primary" size="small" @click="handleAdd">
-        <el-icon><Plus /></el-icon>
-        补录行程
-      </el-button>
+      <div class="header-right">
+        <el-button v-if="!isViewMode" type="primary" size="small" @click.stop="handleAdd">
+          补录行程
+        </el-button>
+        <el-icon class="expand-icon" :class="{ expanded }">
+          <ArrowDown />
+        </el-icon>
+      </div>
     </div>
 
-    <div class="section-content">
+    <div v-show="expanded" class="section-content">
       <el-table :data="travelRecords" border>
+        <el-table-column type="index" label="序号" width="60" align="center" />
         <el-table-column prop="reimburserName" label="出行人员" width="120" />
-        <el-table-column label="出差日期" width="200">
+        <el-table-column label="出差日期" width="240">
           <template #default="{ row }">
             {{ `${row.departureDate} 至 ${row.arrivalDate}` }}
           </template>
         </el-table-column>
-        <el-table-column label="行程" width="200">
+        <el-table-column label="行程" width="130">
           <template #default="{ row }">
             {{ `${row.departureCityName}-${row.arrivalCityName}` }}
           </template>
@@ -43,7 +48,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
 import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
@@ -53,11 +58,16 @@ import TravelRecordModal from './TravelRecordModal.vue'
 const store = useReimbursementStore()
 const { isViewMode } = useReimbursementPageMode()
 
+const expanded = ref(true)
 const modalVisible = ref(false)
 const modalMode = ref<'add' | 'edit' | 'copy'>('add')
 const currentRecord = ref<TravelRecord | null>(null)
 
 const travelRecords = computed(() => store.currentReimbursement?.travelRecords || [])
+
+function toggleExpanded() {
+  expanded.value = !expanded.value
+}
 
 function handleAdd() {
   modalMode.value = 'add'
@@ -111,7 +121,8 @@ function handleSave(record: Omit<TravelRecord, 'id'>) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
+  padding: 10px 20px;
+  cursor: pointer;
   border-bottom: 1px solid #ebeef5;
 }
 
@@ -119,6 +130,20 @@ function handleSave(record: Omit<TravelRecord, 'id'>) {
   font-size: 16px;
   font-weight: bold;
   color: #303133;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.expand-icon {
+  transition: transform 0.3s;
+}
+
+.expand-icon.expanded {
+  transform: rotate(180deg);
 }
 
 .section-content {

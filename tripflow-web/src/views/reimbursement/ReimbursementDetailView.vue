@@ -1,8 +1,8 @@
 <template>
   <div class="reimbursement-detail">
     <div class="document-header">
-      <h1 class="document-title">报销单</h1>
-      <span class="document-date">{{ currentDate }}</span>
+      <h1 class="document-title">差旅费用报销单</h1>
+      <span class="document-date">提单日期 {{ currentDate }}</span>
     </div>
 
     <div class="form-content">

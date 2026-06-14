@@ -94,6 +94,9 @@ mysql -h localhost -u root -p < tripflow-api/src/main/resources/sql/V3_sample_re
 
 # 4.（可选）55 条批量种子数据，用于列表分页与联调
 mysql -h localhost -u root -p < tripflow-api/src/main/resources/sql/V4_bulk_reimbursement_data.sql
+
+# 5. 补录行程新增出发/到达精确时间字段（已有库需执行）
+mysql -h localhost -u root -p < tripflow-api/src/main/resources/sql/V5_travel_record_datetime.sql
 ```
 
 如需重新生成 V4 批量数据，可运行：
@@ -266,6 +269,48 @@ sudo systemctl start redis
 2. 安全组开放 **6379** 端口（建议限制来源 IP）
 3. `.env` 中 `REDIS_HOST=8.134.34.169`，`REDIS_PASSWORD=你的密码`
 
+
+## 更新日志
+
+### 2025-06-15 报销单样式规范 & 交互优化
+
+**页面规范调整**
+
+- 报销单标题改为「差旅费用报销单」，日期前增加「提单日期」前缀
+- 内容区宽度修复：移除 `el-main` 默认 padding，恢复 1200px 宽度
+- 分区标题高度统一为 36px（padding 12px → 10px），保留加粗
+
+**表格优化**
+
+- 补录行程、补助信息、费用归属及分摊三张表格最左侧新增序号列
+- 出差日期列宽 200px → 240px，行程列宽 200px → 130px，确保日期单行显示
+- 费用归属及分摊表格列宽拉伸，撑满整行
+- 费用归属及分摊表格底部新增总计行（总计 / 100% / CNY X.XX），橙黄底色、透明边框
+- 费用归属及分摊第一行恢复可编辑（移除 `$index === 0` 禁用限制）
+- 补助信息标题右侧新增「姓名：X天」总天数统计
+
+**交互优化**
+
+- 补录行程、费用归属及分摊新增展开/收起按钮（与其他分区一致）
+- 「均摊」按钮移至分摊比例表头左侧（link 样式，14px）
+- 补录行程按钮去掉 `+` 图标
+- 新增行程弹窗宽度 600px → 720px，label 宽度 100px → 120px，表单项间距加大
+
+**提示框样式统一**
+
+- 补助信息、新增行程弹窗的提示框统一样式：浅黄底 rgb(255,247,233)、橙色感叹号 rgb(255,153,1)、黑色文字
+
+**新增行程：出发到达日期合并 & 精确到秒**
+
+- 出发日期、到达日期两个字段合并为「出发到达日期」一个 datetimerange 选择器，精确到秒
+- 表格显示仍只展示日期部分（不显示时间）
+- 新增 SQL 迁移脚本 `V5_travel_record_datetime.sql`，云数据库已同步
+- Entity / DTO / Service 同步新增 `departureDatetime`、`arrivalDatetime` 字段
+
+**其他**
+
+- 备注信息字数上限 1000 → 500
+- 操作列 `fixed="right"` 宽度 100px → 110px（补齐右侧 gutter）
 
 ## 后续规划
 

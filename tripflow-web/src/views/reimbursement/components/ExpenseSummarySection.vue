@@ -51,7 +51,7 @@ function toggleExpanded() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
+  padding: 10px 20px;
   cursor: pointer;
   border-bottom: 1px solid #ebeef5;
 }

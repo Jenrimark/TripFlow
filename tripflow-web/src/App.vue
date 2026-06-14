@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Fold, Expand } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
+const collapsed = ref(false)
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/reimbursement')) return '/reimbursement'
@@ -24,15 +26,15 @@ function navigate(path: string) {
 
 <template>
   <el-container class="layout">
-    <el-aside width="220px" class="aside">
-      <div class="brand">
+    <el-aside :width="collapsed ? '0px' : '220px'" class="aside">
+      <div class="brand" :class="{ 'brand--collapsed': collapsed }">
         <span class="brand-mark">TF</span>
-        <div>
+        <div v-show="!collapsed" class="brand-text">
           <strong>TripFlow</strong>
           <p>差旅报销 · 流程审批</p>
         </div>
       </div>
-      <el-menu :default-active="activeMenu" router>
+      <el-menu :default-active="activeMenu" :collapse="collapsed" router>
         <el-menu-item
           v-for="item in menuItems"
           :key="item.path"
@@ -43,6 +45,13 @@ function navigate(path: string) {
         </el-menu-item>
       </el-menu>
     </el-aside>
+
+    <div class="collapse-btn" @click="collapsed = !collapsed">
+      <el-icon :size="18">
+        <Expand v-if="collapsed" />
+        <Fold v-else />
+      </el-icon>
+    </div>
 
     <el-container>
       <el-header class="header">
@@ -57,7 +66,6 @@ function navigate(path: string) {
 
 <style scoped>
 .layout {
-  --sidebar-width: 220px;
   min-height: 100vh;
 }
 
@@ -67,6 +75,9 @@ function navigate(path: string) {
   background: #0f172a;
   color: #e2e8f0;
   border-right: 1px solid #1e293b;
+  transition: width 0.25s ease;
+  overflow: hidden;
+  min-width: 0 !important;
 }
 
 .brand {
@@ -75,6 +86,12 @@ function navigate(path: string) {
   align-items: center;
   padding: 20px 16px;
   border-bottom: 1px solid #1e293b;
+  white-space: nowrap;
+}
+
+.brand--collapsed {
+  justify-content: center;
+  padding: 20px 12px;
 }
 
 .brand-mark {
@@ -87,12 +104,17 @@ function navigate(path: string) {
   background: linear-gradient(135deg, #38bdf8, #6366f1);
   color: #fff;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .brand p {
   margin: 4px 0 0;
   font-size: 12px;
   color: #94a3b8;
+}
+
+.brand-text {
+  overflow: hidden;
 }
 
 .aside :deep(.el-menu) {
@@ -109,6 +131,23 @@ function navigate(path: string) {
   color: #fff;
 }
 
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  margin-top: 20px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.collapse-btn:hover {
+  color: #0f172a;
+  background: #e2e8f0;
+  border-radius: 0 6px 6px 0;
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -123,5 +162,7 @@ function navigate(path: string) {
 
 .main {
   background: #f8fafc;
+  padding-left: 0;
+  padding-right: 0;
 }
 </style>

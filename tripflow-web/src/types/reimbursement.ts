@@ -36,8 +36,10 @@ export interface TravelRecord {
   departureCityName: string // 出发城市名称
   arrivalCityId: string // 到达城市ID
   arrivalCityName: string // 到达城市名称
-  departureDate: string // 出发日期 YYYY-MM-DD
-  arrivalDate: string // 到达日期 YYYY-MM-DD
+  departureDate: string // 出发日期 YYYY-MM-DD（用于表格显示）
+  arrivalDate: string // 到达日期 YYYY-MM-DD（用于表格显示）
+  departureDatetime: string // 出发时间 YYYY-MM-DD HH:mm:ss
+  arrivalDatetime: string // 到达时间 YYYY-MM-DD HH:mm:ss
   description: string // 行程说明，最多500字
 }
 

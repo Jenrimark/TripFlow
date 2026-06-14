@@ -3,16 +3,16 @@
     :model-value="visible"
     @update:model-value="$emit('update:visible', $event)"
     :title="dialogTitle"
-    width="600px"
+    width="720px"
     :close-on-click-modal="false"
   >
-    <el-form ref="formRef" :model="formData" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="formData" :rules="rules" label-width="120px">
       <el-alert
         title="仅可补录未从申请单带入或未产生费用的行程信息。跨天跨城行程填写说明：出发城市-到达城市：武汉-北京; 出发日期-到达日期：1号-5号; 1号~5号补助按北京匹配;"
-        type="info"
+        type="warning"
         show-icon
         :closable="false"
-        style="margin-bottom: 20px"
+        class="modal-alert"
       />
 
       <el-form-item label="出行人" prop="reimburserId">
@@ -63,23 +63,16 @@
         </el-select>
       </el-form-item>
 
-      <el-form-item label="出发日期" prop="departureDate">
+      <el-form-item label="出发到达日期" prop="dateRange">
         <el-date-picker
-          v-model="formData.departureDate"
-          type="date"
-          placeholder="请选择出发日期"
-          value-format="YYYY-MM-DD"
+          v-model="formData.dateRange"
+          type="datetimerange"
+          range-separator="-"
+          start-placeholder="请选择出发日期"
+          end-placeholder="请选择到达日期"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          :default-time="[new Date(0, 0, 0, 0, 0, 0), new Date(0, 0, 0, 23, 59, 59)]"
           :disabled-date="disableFutureDate"
-        />
-      </el-form-item>
-
-      <el-form-item label="到达日期" prop="arrivalDate">
-        <el-date-picker
-          v-model="formData.arrivalDate"
-          type="date"
-          placeholder="请选择到达日期"
-          value-format="YYYY-MM-DD"
-          :disabled-date="disableDateBeforeDeparture"
         />
       </el-form-item>
 
@@ -133,15 +126,17 @@ const formData = reactive<Omit<TravelRecord, 'id'>>({
   arrivalCityName: '',
   departureDate: '',
   arrivalDate: '',
+  departureDatetime: '',
+  arrivalDatetime: '',
   description: '',
+  dateRange: [] as string[],
 })
 
 const rules: FormRules = {
   reimburserId: [{ required: true, message: '请选择出行人', trigger: 'change' }],
   departureCityId: [{ required: true, message: '请选择出发城市', trigger: 'change' }],
   arrivalCityId: [{ required: true, message: '请选择到达城市', trigger: 'change' }],
-  departureDate: [{ required: true, message: '请选择出发日期', trigger: 'change' }],
-  arrivalDate: [{ required: true, message: '请选择到达日期', trigger: 'change' }],
+  dateRange: [{ required: true, message: '请选择出发到达日期', trigger: 'change' }],
   description: [{ required: true, message: '请输入行程说明', trigger: 'blur' }],
 }
 
@@ -153,11 +148,6 @@ const dialogTitle = computed(() => {
 
 function disableFutureDate(date: Date) {
   return date > new Date()
-}
-
-function disableDateBeforeDeparture(date: Date) {
-  if (!formData.departureDate) return false
-  return date < new Date(formData.departureDate)
 }
 
 function handleReimburserChange(value: string) {
@@ -186,7 +176,12 @@ async function handleSave() {
   if (!formRef.value) return
 
   await formRef.value.validate((valid) => {
-    if (valid) {
+    if (valid && formData.dateRange.length === 2) {
+      const [start, end] = formData.dateRange
+      formData.departureDatetime = start
+      formData.arrivalDatetime = end
+      formData.departureDate = start.slice(0, 10)
+      formData.arrivalDate = end.slice(0, 10)
       emit('save', { ...formData })
     }
   })
@@ -206,8 +201,13 @@ watch(
         arrivalCityName: newRecord.arrivalCityName,
         departureDate: newRecord.departureDate,
         arrivalDate: newRecord.arrivalDate,
+        departureDatetime: newRecord.departureDatetime ?? '',
+        arrivalDatetime: newRecord.arrivalDatetime ?? '',
         description: newRecord.description,
       })
+      formData.dateRange = newRecord.departureDatetime && newRecord.arrivalDatetime
+        ? [newRecord.departureDatetime, newRecord.arrivalDatetime]
+        : []
     } else {
       Object.assign(formData, {
         reimburserId: '',
@@ -219,6 +219,9 @@ watch(
         arrivalCityName: '',
         departureDate: '',
         arrivalDate: '',
+        departureDatetime: '',
+        arrivalDatetime: '',
+        dateRange: [],
         description: '',
       })
     }
@@ -230,3 +233,31 @@ onMounted(() => {
   loadMasterData()
 })
 </script>
+
+<style scoped>
+.modal-alert {
+  margin-bottom: 20px;
+  --el-alert-bg-color: rgb(255, 247, 233);
+  --el-alert-icon-color: rgb(255, 153, 1);
+}
+
+.modal-alert :deep(.el-alert__icon) {
+  background-color: transparent;
+}
+
+.modal-alert :deep(.el-alert__icon svg) {
+  color: rgb(255, 153, 1);
+}
+
+.modal-alert :deep(.el-alert__title) {
+  color: #000 !important;
+}
+
+:deep(.el-dialog__body) {
+  padding: 20px 30px;
+}
+
+:deep(.el-form-item) {
+  margin-bottom: 22px;
+}
+</style>
