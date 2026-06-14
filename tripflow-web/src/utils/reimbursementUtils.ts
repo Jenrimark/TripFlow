@@ -99,12 +99,12 @@ export function generateAllowanceCalendar(
       mealAllowance: standard.meal,
       transportAllowance: standard.transport,
       communicationAllowance: standard.communication,
-      mealSelected: false,
-      transportSelected: false,
-      communicationSelected: false,
-      mealAmount: 0,
-      transportAmount: 0,
-      communicationAmount: 0,
+      mealSelected: true,
+      transportSelected: true,
+      communicationSelected: true,
+      mealAmount: standard.meal,
+      transportAmount: standard.transport,
+      communicationAmount: standard.communication,
     })
   }
 
@@ -161,29 +161,28 @@ export function bankerRound(num: number, decimals: number): number {
 }
 
 /**
- * 计算均摊金额
+ * 计算均摊金额（余数加到第一行，按分数计算避免百分比精度问题）
  */
 export function calculateEvenAllocation(
   totalAmount: number,
   count: number,
 ): { ratio: number; amount: number }[] {
+  if (count <= 0) return []
+
   const results: { ratio: number; amount: number }[] = []
-  let remainingAmount = totalAmount
-  let remainingRatio = 1
+  const totalCents = Math.round(totalAmount * 100)
+  const baseCents = Math.floor(totalCents / count)
+  const remainder = totalCents - baseCents * count
 
   for (let i = 0; i < count; i++) {
-    if (i === count - 1) {
-      results.push({
-        ratio: bankerRound(remainingRatio, 4),
-        amount: bankerRound(remainingAmount, 2),
-      })
-    } else {
-      const ratio = bankerRound(1 / count, 4)
-      const amount = bankerRound(totalAmount * ratio, 2)
-      results.push({ ratio, amount })
-      remainingAmount -= amount
-      remainingRatio -= ratio
-    }
+    // 余数加到第一行
+    const amountCents = i === 0 ? baseCents + remainder : baseCents
+    const amount = amountCents / 100
+    const ratio = totalAmount === 0 ? 0 : amount / totalAmount
+    results.push({
+      ratio: bankerRound(ratio, 4),
+      amount: bankerRound(amount, 2),
+    })
   }
 
   return results

@@ -83,7 +83,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
 import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
@@ -110,6 +110,28 @@ const allocations = computed(() => {
     ratioDisplay: (a.ratio * 100).toFixed(2),
   }))
 })
+
+/** 同步 store 中的真实比例到 DOM，解决 el-input 不随 computed 更新的问题 */
+function syncAllRatioDisplays() {
+  const storeAllocs = store.currentReimbursement?.costAllocations
+  if (!storeAllocs) return
+  const inputs = document.querySelectorAll(
+    '.cost-allocation-section .el-table__body .el-input__inner',
+  ) as NodeListOf<HTMLInputElement>
+  storeAllocs.forEach((a, i) => {
+    if (inputs[i]) {
+      inputs[i].value = (a.ratio * 100).toFixed(2)
+    }
+  })
+}
+
+watch(
+  () => store.currentReimbursement?.costAllocations,
+  () => {
+    nextTick(syncAllRatioDisplays)
+  },
+  { deep: true, flush: 'post' },
+)
 
 function getSummary({ columns, data }: { columns: TableColumnCtx<CostAllocation>[]; data: CostAllocation[] }) {
   const totalAmount = data.reduce((sum, row) => sum + (row.amount ?? 0), 0)

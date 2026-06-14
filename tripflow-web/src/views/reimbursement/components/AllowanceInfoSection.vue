@@ -55,6 +55,7 @@
     <AllowanceCalendarModal
       v-model:visible="modalVisible"
       :allowance="currentAllowance"
+      :business-type-name="store.currentReimbursement?.basicInfo?.businessTypeName"
       @save="handleSave"
     />
   </div>
