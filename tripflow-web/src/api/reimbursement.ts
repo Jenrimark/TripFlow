@@ -24,15 +24,15 @@ export const reimbursementApi = {
     return request.put<Reimbursement>(`/reimbursement/${id}`, data)
   },
 
-  delete(id: string) {
-    return request.delete(`/reimbursement/${id}`)
+  delete(id: string, version?: number) {
+    return request.delete(`/reimbursement/${id}`, { params: { version } })
   },
 
-  submit(id: string) {
-    return request.post(`/reimbursement/${id}/submit`)
+  submit(id: string, version: number) {
+    return request.post(`/reimbursement/${id}/submit`, null, { params: { version } })
   },
 
-  void(id: string) {
-    return request.post(`/reimbursement/${id}/void`)
+  void(id: string, version: number) {
+    return request.post(`/reimbursement/${id}/void`, null, { params: { version } })
   },
 }
