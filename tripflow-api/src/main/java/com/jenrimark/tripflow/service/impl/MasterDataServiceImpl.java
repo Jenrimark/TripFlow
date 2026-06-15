@@ -63,7 +63,6 @@ public class MasterDataServiceImpl implements MasterDataService {
     }
 
     @Override
-    @Cacheable(cacheNames = TripflowCacheNames.MASTER_REIMBURSERS, key = "'all'")
     public List<ReimburserVo> listReimbursers() {
         Map<String, ReimDepartment> deptMap = departmentMapper.selectList(null).stream()
                 .collect(Collectors.toMap(ReimDepartment::getReimDepartmentId, d -> d));
