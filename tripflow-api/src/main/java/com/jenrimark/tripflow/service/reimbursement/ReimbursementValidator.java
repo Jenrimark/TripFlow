@@ -54,14 +54,10 @@ public class ReimbursementValidator {
 
         ReimbursementDto.BasicInfo basic = dto.getBasicInfo();
         if (basic != null) {
-            if (!StringUtils.hasText(basic.getTitle())) {
-                errors.add("请填写报销标题");
-            } else if (basic.getTitle().length() > 500) {
+            if (StringUtils.hasText(basic.getTitle()) && basic.getTitle().length() > 500) {
                 errors.add("报销标题不能超过500个字符");
             }
-            if (!StringUtils.hasText(basic.getReason())) {
-                errors.add("请填写出差事由");
-            } else if (basic.getReason().length() > 500) {
+            if (StringUtils.hasText(basic.getReason()) && basic.getReason().length() > 500) {
                 errors.add("出差事由不能超过500个字符");
             }
         }
@@ -92,8 +88,10 @@ public class ReimbursementValidator {
         }
 
         validateTravelRecords(dto, errors);
-        validateAllowances(dto, errors);
-        validateCostAllocations(dto, errors);
+        if (submit) {
+            validateAllowances(dto, errors);
+            validateCostAllocations(dto, errors);
+        }
 
         return errors;
     }
