@@ -629,6 +629,7 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
 
     /**
      * 提交报销单，并同步更新 content JSON 中的状态值。
+     * 仅允许草稿(0)和已完成(1)状态提交。
      */
     @Override
     @Transactional
@@ -636,6 +637,9 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         ReimbursementRecord record = getById(id);
         if (record == null) {
             throw new IllegalArgumentException("报销单不存在");
+        }
+        if (record.getStatus() != null && record.getStatus() == 2) {
+            throw new IllegalArgumentException("已作废的报销单不能提交");
         }
         assertVersionMatches(record, version);
         beginReimbursementCacheDoubleDelete(id);
