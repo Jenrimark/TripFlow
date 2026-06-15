@@ -1,12 +1,12 @@
 <template>
   <div class="travel-record-section">
-    <div class="section-header" @click="toggleExpanded">
+    <div class="section-header">
       <span class="section-title">补录行程</span>
       <div class="header-right">
         <el-button v-if="!isViewMode" type="primary" size="small" @click.stop="handleAdd">
           补录行程
         </el-button>
-        <el-icon class="expand-icon" :class="{ expanded }">
+        <el-icon class="expand-icon" :class="{ expanded }" @click.stop="toggleExpanded">
           <ArrowDown />
         </el-icon>
       </div>
@@ -27,11 +27,23 @@
           </template>
         </el-table-column>
         <el-table-column prop="description" label="行程说明" min-width="200" show-overflow-tooltip />
-        <el-table-column v-if="!isViewMode" label="操作" width="180" fixed="right">
+        <el-table-column v-if="!isViewMode" label="操作" width="120" align="center" fixed="right">
           <template #default="{ row }">
-            <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
-            <el-button type="primary" link @click="handleCopy(row)">复制</el-button>
-            <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
+            <el-tooltip content="删除" placement="top">
+              <el-button link type="danger" class="action-icon" @click="handleDelete(row)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="编辑" placement="top">
+              <el-button link type="primary" class="action-icon" @click="handleEdit(row)">
+                <el-icon><EditPen /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="复制" placement="top">
+              <el-button link type="primary" class="action-icon" @click="handleCopy(row)">
+                <el-icon><CopyDocument /></el-icon>
+              </el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -48,7 +60,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Plus, ArrowDown } from '@element-plus/icons-vue'
+import { Plus, ArrowDown, Delete, EditPen, CopyDocument } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
 import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
@@ -140,6 +152,21 @@ function handleSave(record: Omit<TravelRecord, 'id'>) {
 
 .expand-icon {
   transition: transform 0.3s;
+}
+
+.action-icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-icon :deep(svg) {
+  stroke-width: 2.5;
 }
 
 .expand-icon.expanded {
