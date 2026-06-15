@@ -98,6 +98,7 @@ public class ReimbursementDto {
         private String projectId;
         private String projectName;
         private String projectNo;
+        private Double realRatio;
         private Double ratio;
         private Double amount;
     }

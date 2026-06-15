@@ -21,6 +21,7 @@ public class ReimbursementCostAllocation {
     private String projectId;
     private String projectName;
     private String projectNo;
+    private BigDecimal realRatio;
     private BigDecimal ratio;
     private BigDecimal amount;
     private Integer sortOrder;
