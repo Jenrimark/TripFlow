@@ -1,13 +1,13 @@
 <template>
   <div class="cost-allocation-section">
-    <div class="section-header" @click="toggleExpanded">
+    <div class="section-header">
       <span class="section-title">
         费用归属及分摊
         <span class="total-amount">分摊金额：{{ formatAmount(store.totalAllowanceAmount) }}</span>
       </span>
       <div class="header-right">
         <el-button v-if="!isViewMode" type="primary" size="small" @click.stop="handleAdd">添加一行</el-button>
-        <el-icon class="expand-icon" :class="{ expanded }">
+        <el-icon class="expand-icon" :class="{ expanded }" @click.stop="toggleExpanded">
           <ArrowDown />
         </el-icon>
       </div>
@@ -54,7 +54,11 @@
         </el-table-column>
         <el-table-column width="180" align="right">
           <template #header>
-            <el-button v-if="!isViewMode" type="primary" link @click.stop="handleEvenAllocation">均摊</el-button>
+            <el-tooltip v-if="!isViewMode" content="均摊" placement="top">
+              <el-button link type="primary" class="action-icon" @click.stop="handleEvenAllocation">
+                <el-icon><Refresh /></el-icon>
+              </el-button>
+            </el-tooltip>
             分摊比例
           </template>
           <template #default="{ row, $index }">
@@ -67,6 +71,12 @@
             </el-input>
           </template>
         </el-table-column>
+        <!-- 实际比例列：隐藏但保留，逻辑不变 -->
+        <el-table-column v-if="false" label="实际比例" width="120" align="center">
+          <template #default="{ row }">
+            {{ formatRealRatio(row.realRatio) }}
+          </template>
+        </el-table-column>
         <el-table-column label="金额" width="180" align="right">
           <template #default="{ row }">
             <span class="amount">{{ formatAmount(row.amount) }}</span>
@@ -74,7 +84,11 @@
         </el-table-column>
         <el-table-column v-if="!isViewMode" label="操作" width="100" fixed="right">
           <template #default="{ row, $index }">
-            <el-button type="danger" link @click="handleDelete(row, $index)">删除</el-button>
+            <el-tooltip content="删除" placement="top">
+              <el-button link type="danger" class="action-icon" @click="handleDelete(row, $index)">
+                <el-icon><Delete /></el-icon>
+              </el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -89,7 +103,7 @@ import { useReimbursementStore } from '@/stores/reimbursementStore'
 import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
 import type { CostAllocation } from '@/types/reimbursement'
 import type { TableColumnCtx } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { ArrowDown, Delete, Refresh } from '@element-plus/icons-vue'
 import { formatAmount } from '@/utils/reimbursementUtils'
 import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
 
@@ -110,6 +124,35 @@ const allocations = computed(() => {
     ratioDisplay: (a.ratio * 100).toFixed(2),
   }))
 })
+
+/**
+ * 将小数比例转成分数显示
+ * 0.3333... → "1/3"，0.25 → "1/4"，无精确分数则显示小数
+ */
+function formatRealRatio(r: number): string {
+  if (r === 0) return '0'
+  if (r === 1) return '1'
+  // 最大分母 100，找最接近的分数
+  let bestNum = 1, bestDen = 1
+  let bestDiff = Math.abs(r - 1)
+  for (let den = 2; den <= 100; den++) {
+    const num = Math.round(r * den)
+    const diff = Math.abs(r - num / den)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      bestNum = num
+      bestDen = den
+      if (diff < 1e-9) break
+    }
+  }
+  // 约分
+  const g = gcd(bestNum, bestDen)
+  return `${bestNum / g}/${bestDen / g}`
+}
+
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b)
+}
 
 /** 同步 store 中的真实比例到 DOM，解决 el-input 不随 computed 更新的问题 */
 function syncAllRatioDisplays() {
@@ -271,5 +314,20 @@ onMounted(() => {
 .cost-allocation-section :deep(.el-table__footer-wrapper) td:nth-child(5) {
   color: rgb(255, 153, 1);
   font-weight: bold;
+}
+
+.action-icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-icon :deep(svg) {
+  stroke-width: 2.5;
 }
 </style>
