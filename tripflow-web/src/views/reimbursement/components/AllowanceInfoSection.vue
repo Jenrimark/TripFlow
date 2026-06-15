@@ -1,11 +1,11 @@
 <template>
   <div class="allowance-info-section">
-    <div class="section-header" @click="toggleExpanded">
+    <div class="section-header">
       <span class="section-title">
         补助信息
         <span class="total-days">{{ reimburserName }}：{{ totalDays }}天</span>
       </span>
-      <el-icon class="expand-icon" :class="{ expanded }">
+      <el-icon class="expand-icon" :class="{ expanded }" @click.stop="toggleExpanded">
         <ArrowDown />
       </el-icon>
     </div>
@@ -46,7 +46,11 @@
         </el-table-column>
         <el-table-column label="操作" width="110" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="!isViewMode" type="primary" link @click="handleEdit(row)">编辑</el-button>
+            <el-tooltip v-if="!isViewMode" content="编辑" placement="top">
+              <el-button link type="primary" class="action-icon" @click="handleEdit(row)">
+                <el-icon><EditPen /></el-icon>
+              </el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -63,7 +67,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { ArrowDown, EditPen } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
 import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
@@ -165,5 +169,20 @@ function handleSave(calendar: AllowanceCalendarItem[]) {
 
 .allowance-alert :deep(.el-alert__title) {
   color: #000 !important;
+}
+
+.action-icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin: 0;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-icon :deep(svg) {
+  stroke-width: 2.5;
 }
 </style>
