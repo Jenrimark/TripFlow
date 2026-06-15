@@ -49,7 +49,20 @@
         </el-form-item>
 
         <el-form-item label="报销部门" prop="departmentId">
-          <el-input v-model="formData.departmentName" disabled placeholder="选择报销人后自动带出" />
+          <el-select
+            v-model="formData.departmentId"
+            filterable
+            placeholder="选择报销人后自动带出，也可手动修改"
+            :disabled="isViewMode"
+            @change="handleDepartmentChange"
+          >
+            <el-option
+              v-for="dept in departments"
+              :key="dept.reimDepartmentId"
+              :label="dept.reimDepartmentName"
+              :value="dept.reimDepartmentId"
+            />
+          </el-select>
         </el-form-item>
 
         <el-form-item label="费用归属公司" prop="companyId">
@@ -100,7 +113,7 @@ import { useReimbursementMasterData } from '@/composables/useReimbursementMaster
 
 const store = useReimbursementStore()
 const { isViewMode } = useReimbursementPageMode()
-const { companies, reimbursers, businessTypes, loadMasterData } = useReimbursementMasterData()
+const { companies, reimbursers, businessTypes, departments, loadMasterData } = useReimbursementMasterData()
 const formRef = ref<FormInstance>()
 const businessTypeSelectRef = ref()
 const expanded = ref(true)
@@ -148,6 +161,14 @@ function handleReimburserChange(value: string) {
     formData.departmentId = person.departmentId ?? ''
     formData.departmentName = person.departmentName ?? ''
     formData.departmentNo = person.departmentNo ?? ''
+  }
+}
+
+function handleDepartmentChange(value: string) {
+  const dept = departments.value.find((d) => d.reimDepartmentId === value)
+  if (dept) {
+    formData.departmentName = dept.reimDepartmentName
+    formData.departmentNo = dept.reimDepartmentNo
   }
 }
 
