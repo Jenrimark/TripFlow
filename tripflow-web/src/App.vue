@@ -5,7 +5,7 @@ import { Fold, Expand } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
-const collapsed = ref(false)
+const collapsed = ref(true)
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/reimbursement')) return '/reimbursement'
@@ -46,16 +46,15 @@ function navigate(path: string) {
       </el-menu>
     </el-aside>
 
-    <div class="collapse-btn" @click="collapsed = !collapsed">
-      <el-icon :size="18">
-        <Expand v-if="collapsed" />
-        <Fold v-else />
-      </el-icon>
-    </div>
-
     <el-container>
       <el-header class="header">
         <h2>{{ route.meta.title }}</h2>
+        <div class="collapse-btn" @click="collapsed = !collapsed">
+          <el-icon :size="16">
+            <Expand v-if="collapsed" />
+            <Fold v-else />
+          </el-icon>
+        </div>
       </el-header>
       <el-main class="main">
         <router-view />
@@ -131,26 +130,10 @@ function navigate(path: string) {
   color: #fff;
 }
 
-.collapse-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  margin-top: 20px;
-  color: #94a3b8;
-  cursor: pointer;
-  transition: color 0.2s, background 0.2s;
-}
-
-.collapse-btn:hover {
-  color: #0f172a;
-  background: #e2e8f0;
-  border-radius: 0 6px 6px 0;
-}
-
 .header {
   display: flex;
   align-items: center;
+  gap: 8px;
   border-bottom: 1px solid #e2e8f0;
   background: #fff;
 }
@@ -158,6 +141,24 @@ function navigate(path: string) {
 .header h2 {
   margin: 0;
   font-size: 18px;
+}
+
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  color: #64748b;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+  flex-shrink: 0;
+}
+
+.collapse-btn:hover {
+  color: #0f172a;
+  background: #e2e8f0;
 }
 
 .main {
