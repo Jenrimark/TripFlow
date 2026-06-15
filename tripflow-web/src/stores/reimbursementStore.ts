@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import {
   type Reimbursement,
   type ReimbursementQuery,
@@ -106,7 +107,12 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
       throw new Error('报销单不存在')
     }
     syncTotalsToCurrent()
-    return JSON.parse(JSON.stringify(currentReimbursement.value)) as Reimbursement
+    const snapshot = JSON.parse(JSON.stringify(currentReimbursement.value)) as Reimbursement
+    // 过滤掉完全空的分摊记录（暂存时可能有默认的空记录）
+    snapshot.costAllocations = snapshot.costAllocations.filter(a =>
+      a.companyId || a.projectId || a.ratio > 0 || a.amount > 0
+    )
+    return snapshot
   }
 
   async function saveReimbursement(): Promise<Reimbursement> {
@@ -123,14 +129,18 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
 
   async function submitReimbursement() {
     const saved = await saveReimbursement()
-    await reimbursementApi.submit(saved.id)
+    await reimbursementApi.submit(saved.id, saved.version)
     if (currentReimbursement.value) {
       currentReimbursement.value.status = DocumentStatus.COMPLETED
     }
   }
 
-  async function deleteReimbursement(id: string) {
-    await reimbursementApi.delete(id)
+  async function deleteReimbursement(id: string, version?: number) {
+    await reimbursementApi.delete(id, version)
+  }
+
+  async function voidReimbursement(id: string, version: number) {
+    await reimbursementApi.void(id, version)
   }
 
   function newLocalId(prefix: string) {
@@ -186,6 +196,7 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
       documentType: REIMBURSEMENT_DOCUMENT_TYPE,
       status: DocumentStatus.DRAFT,
       createdAt: new Date().toISOString().split('T')[0]!,
+      version: 0,
       basicInfo: {
         title: '',
         reason: '',
@@ -213,6 +224,7 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
           projectId: '',
           projectName: '',
           projectNo: '',
+          realRatio: 1,
           ratio: 1,
           amount: 0,
         },
@@ -321,35 +333,69 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
       projectId: '',
       projectName: '',
       projectNo: '',
+      realRatio: 0,
       ratio: 0,
       amount: 0,
     })
   }
 
+  /** 根据 realRatio 重新计算所有行的 ratio（显示用）和 amount */
+  function recalcFromRealRatios() {
+    if (!currentReimbursement.value) return
+    const allocations = currentReimbursement.value.costAllocations
+    const total = totalAllowanceAmount.value
+
+    // 第一行 realRatio = 1 - sum(其余行realRatio)
+    let othersSum = 0
+    for (let i = 1; i < allocations.length; i++) {
+      othersSum += allocations[i]!.realRatio
+    }
+    allocations[0]!.realRatio = 1 - othersSum
+
+    // ratio（显示）：第2行起四舍，第1行 = 100 - sum(其余ratio)
+    let othersRatioDisplaySum = 0
+    for (let i = 1; i < allocations.length; i++) {
+      allocations[i]!.ratio = Math.floor(allocations[i]!.realRatio * 10000) / 10000 // 两位小数截断
+      othersRatioDisplaySum += allocations[i]!.ratio
+    }
+    allocations[0]!.ratio = Math.floor((1 - othersRatioDisplaySum) * 10000) / 10000
+
+    // 金额按 realRatio 计算，最后一分钱差额给第一行
+    let othersAmountSum = 0
+    for (let i = 1; i < allocations.length; i++) {
+      allocations[i]!.amount = Math.floor(total * allocations[i]!.realRatio * 100) / 100
+      othersAmountSum += allocations[i]!.amount
+    }
+    allocations[0]!.amount = Math.round((total - othersAmountSum) * 100) / 100
+  }
+
   function updateCostAllocation(id: string, allocation: Partial<CostAllocation>) {
     if (!currentReimbursement.value) return
     const index = currentReimbursement.value.costAllocations.findIndex((a) => a.id === id)
-    if (index !== -1) {
-      currentReimbursement.value.costAllocations[index] = {
-        ...currentReimbursement.value.costAllocations[index]!,
-        ...allocation,
+    if (index === -1) return
+
+    currentReimbursement.value.costAllocations[index] = {
+      ...currentReimbursement.value.costAllocations[index]!,
+      ...allocation,
+    }
+
+    // 用户改了 ratio（百分比输入框），转成 realRatio 再重算
+    if (index > 0 && allocation.ratio !== undefined) {
+      const realRatio = allocation.ratio // ratio 已经是 0-1，直接作为 realRatio
+      const allocations = currentReimbursement.value.costAllocations
+      allocations[index]!.realRatio = realRatio
+
+      let othersSum = 0
+      for (let i = 1; i < allocations.length; i++) {
+        if (i !== index) othersSum += allocations[i]!.realRatio
       }
-
-      if (index > 0 && allocation.ratio !== undefined) {
-        const allocations = currentReimbursement.value.costAllocations
-        let sum = 0
-        for (let i = 1; i < allocations.length; i++) {
-          sum += allocations[i]!.ratio
-        }
-
-        if (sum > 1) {
-          allocations[index]!.ratio = 0
-          allocations[index]!.amount = 0
-        } else {
-          allocations[0]!.ratio = 1 - sum
-          allocations[0]!.amount = totalAllowanceAmount.value * allocations[0]!.ratio
-          allocations[index]!.amount = totalAllowanceAmount.value * allocation.ratio
-        }
+      if (othersSum + realRatio > 1) {
+        allocations[index]!.realRatio = 0
+        allocations[index]!.ratio = 0
+        allocations[index]!.amount = 0
+        ElMessage.error('比例之和不能超过100%')
+      } else {
+        recalcFromRealRatios()
       }
     }
   }
@@ -362,13 +408,7 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     currentReimbursement.value.costAllocations =
       currentReimbursement.value.costAllocations.filter((a) => a.id !== id)
 
-    const allocations = currentReimbursement.value.costAllocations
-    let sum = 0
-    for (let i = 1; i < allocations.length; i++) {
-      sum += allocations[i]!.ratio
-    }
-    allocations[0]!.ratio = 1 - sum
-    allocations[0]!.amount = totalAllowanceAmount.value * allocations[0]!.ratio
+    recalcFromRealRatios()
   }
 
   function evenAllocation() {
@@ -376,11 +416,14 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     const allocations = currentReimbursement.value.costAllocations
     if (allocations.length === 0) return
 
-    const evenResults = calculateEvenAllocation(totalAllowanceAmount.value, allocations.length)
-    allocations.forEach((a, i) => {
-      a.ratio = evenResults[i]!.ratio
-      a.amount = evenResults[i]!.amount
+    const n = allocations.length
+    const evenRatio = 1 / n
+
+    allocations.forEach((a) => {
+      a.realRatio = evenRatio
     })
+
+    recalcFromRealRatios()
   }
 
   function validateBeforeSubmit(): string[] {
@@ -439,5 +482,6 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     saveReimbursement,
     submitReimbursement,
     deleteReimbursement,
+    voidReimbursement,
   }
 })
