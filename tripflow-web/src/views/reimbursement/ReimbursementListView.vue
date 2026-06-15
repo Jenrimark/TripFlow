@@ -82,6 +82,7 @@
           </el-form-item>
           <el-form-item label="业务类型" class="query-field">
             <el-tree-select
+              ref="businessTypeSelectRef"
               v-model="queryForm.businessTypeIds"
               :data="businessTypes"
               :props="{ label: 'businessTypeName', value: 'businessTypeId' }"
@@ -90,6 +91,8 @@
               collapse-tags
               collapse-tags-tooltip
               placeholder="请选择"
+              @node-click="handleBusinessTypeNodeClick"
+              @change="handleBusinessTypeChange"
             />
           </el-form-item>
         </div>
@@ -252,9 +255,11 @@ import { useReimbursementStore } from '@/stores/reimbursementStore'
 import { DocumentStatus, REIMBURSEMENT_DOCUMENT_TYPE, type Reimbursement } from '@/types/reimbursement'
 import { formatAmount } from '@/utils/reimbursementUtils'
 import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
+import { isLeafBusinessType } from '@/api/master'
 
 const router = useRouter()
 const store = useReimbursementStore()
+const businessTypeSelectRef = ref()
 const { companies, departments, reimbursers, businessTypes, loadMasterData } =
   useReimbursementMasterData()
 
@@ -377,6 +382,19 @@ function handleSizeChange() {
 
 function handleCurrentChange() {
   store.fetchReimbursements()
+}
+
+function handleBusinessTypeNodeClick(_data: any, node: any) {
+  if (!node.isLeaf) {
+    node.expanded ? node.collapse() : node.expand()
+  }
+}
+
+function handleBusinessTypeChange(values: string[]) {
+  // 过滤掉父节点，只保留叶子节点
+  queryForm.value.businessTypeIds = values.filter((id) =>
+    isLeafBusinessType(id, businessTypes.value),
+  )
 }
 
 onMounted(async () => {

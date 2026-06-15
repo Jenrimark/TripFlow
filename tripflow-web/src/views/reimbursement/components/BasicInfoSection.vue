@@ -71,6 +71,7 @@
 
         <el-form-item label="业务类型" prop="businessTypeId">
           <el-tree-select
+            ref="businessTypeSelectRef"
             v-model="formData.businessTypeId"
             :data="businessTypes"
             :props="{ label: 'businessTypeName', value: 'businessTypeId' }"
@@ -78,6 +79,7 @@
             placeholder="请选择业务类型"
             :disabled="isViewMode"
             @change="handleBusinessTypeChange"
+            @node-click="handleBusinessTypeNodeClick"
           />
         </el-form-item>
       </el-form>
@@ -93,12 +95,14 @@ import { useReimbursementStore } from '@/stores/reimbursementStore'
 import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
 import type { ReimbursementBasicInfo } from '@/types/reimbursement'
 import type { BusinessType } from '@/api/master'
+import { isLeafBusinessType } from '@/api/master'
 import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
 
 const store = useReimbursementStore()
 const { isViewMode } = useReimbursementPageMode()
 const { companies, reimbursers, businessTypes, loadMasterData } = useReimbursementMasterData()
 const formRef = ref<FormInstance>()
+const businessTypeSelectRef = ref()
 const expanded = ref(true)
 
 const formData = reactive<ReimbursementBasicInfo>({
@@ -130,6 +134,12 @@ function toggleExpanded() {
   expanded.value = !expanded.value
 }
 
+function handleBusinessTypeNodeClick(_data: any, node: any) {
+  if (!node.isLeaf) {
+    node.expanded ? node.collapse() : node.expand()
+  }
+}
+
 function handleReimburserChange(value: string) {
   const person = reimbursers.value.find((p) => p.reimburserId === value)
   if (person) {
@@ -150,6 +160,13 @@ function handleCompanyChange(value: string) {
 }
 
 function handleBusinessTypeChange(value: string) {
+  // 父节点不可选：拦截并还原
+  if (!isLeafBusinessType(value, businessTypes.value)) {
+    formData.businessTypeId = ''
+    formData.businessTypeName = ''
+    formData.businessTypeNo = ''
+    return
+  }
   const findType = (types: BusinessType[]): BusinessType | null => {
     for (const type of types) {
       if (type.businessTypeId === value) return type
