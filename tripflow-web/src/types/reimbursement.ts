@@ -83,8 +83,9 @@ export interface CostAllocation {
   projectId: string // 项目ID
   projectName: string // 项目名称
   projectNo: string // 项目编号
-  ratio: number // 分摊比例 0-1
-  amount: number // 分摊金额
+  realRatio: number // 实际比例（精确分数存储，如 1/3 = 0.333333...）
+  ratio: number // 分摊比例 0-1（显示用，四舍五入到两位小数）
+  amount: number // 分摊金额（按 realRatio 计算）
 }
 
 // 报销单完整信息
@@ -94,6 +95,7 @@ export interface Reimbursement {
   documentType?: string // 单据类型
   status: DocumentStatus // 单据状态
   createdAt: string // 创建时间
+  version: number // 乐观锁版本号
   basicInfo: ReimbursementBasicInfo // 基本信息
   travelRecords: TravelRecord[] // 补录行程列表
   allowances: AllowanceInfo[] // 补助信息列表
