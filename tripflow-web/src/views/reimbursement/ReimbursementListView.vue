@@ -360,20 +360,57 @@ function handleManualPush(row: Reimbursement) {
   ElMessage.success('推送成功')
 }
 
-function handleDelete(row: Reimbursement) {
-  ElMessageBox.confirm('确定要删除该报销单吗？删除后无法恢复。', '警告', {
-    type: 'warning',
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-  }).then(async () => {
+async function handleDelete(row: Reimbursement) {
+  if (row.status === DocumentStatus.VOIDED) {
+    ElMessageBox.confirm('确定要删除该报销单吗？删除后无法恢复。', '警告', {
+      type: 'warning',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+    }).then(async () => {
+      try {
+        await store.deleteReimbursement(row.id, row.version)
+        await store.fetchReimbursements()
+        ElMessage.success('删除成功')
+      } catch {
+        ElMessage.error('删除失败')
+      }
+    })
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      '请选择对该报销单的操作：',
+      '提示',
+      {
+        type: 'warning',
+        confirmButtonText: '作废',
+        cancelButtonText: '删除',
+        distinguishCancelAndClose: true,
+        closeOnClickModal: false,
+      },
+    )
+    // confirm = 作废
     try {
-      await store.deleteReimbursement(row.id)
+      await store.voidReimbursement(row.id, row.version)
       await store.fetchReimbursements()
-      ElMessage.success('删除成功')
+      ElMessage.success('作废成功')
     } catch {
-      ElMessage.error('删除失败')
+      ElMessage.error('作废失败')
     }
-  })
+  } catch (action) {
+    if (action === 'cancel') {
+      // cancel = 删除
+      try {
+        await store.deleteReimbursement(row.id, row.version)
+        await store.fetchReimbursements()
+        ElMessage.success('删除成功')
+      } catch {
+        ElMessage.error('删除失败')
+      }
+    }
+    // close = 什么都不做
+  }
 }
 
 function handleSizeChange() {
