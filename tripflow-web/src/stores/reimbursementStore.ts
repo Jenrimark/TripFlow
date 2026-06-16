@@ -118,6 +118,11 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
 
   async function saveReimbursement(): Promise<Reimbursement> {
     const payload = getSnapshot()
+    // 每次保存时更新提交日期
+    payload.createdAt = new Date().toISOString().split('T')[0]!
+    if (currentReimbursement.value) {
+      currentReimbursement.value.createdAt = payload.createdAt
+    }
     if (payload.id) {
       const { data } = await reimbursementApi.update(payload.id, payload)
       currentReimbursement.value = data
@@ -129,6 +134,9 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
   }
 
   async function submitReimbursement() {
+    if (currentReimbursement.value) {
+      currentReimbursement.value.createdAt = new Date().toISOString().split('T')[0]!
+    }
     const saved = await saveReimbursement()
     await reimbursementApi.submit(saved.id, saved.version)
     if (currentReimbursement.value) {
