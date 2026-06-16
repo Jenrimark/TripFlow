@@ -75,7 +75,7 @@
               <el-option
                 v-for="person in reimbursers"
                 :key="person.reimburserId"
-                :label="`${person.reimburserName}(${person.reimburserNo})`"
+                :label="person.reimburserName ? `${person.reimburserName}(${person.reimburserNo || '-'})` : person.reimburserNo || '-'"
                 :value="person.reimburserId"
               />
             </el-select>
@@ -180,12 +180,12 @@
         </el-table-column>
         <el-table-column label="报销人" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ `${row.basicInfo.reimburserName}(${row.basicInfo.reimburserNo})` }}
+            {{ row.basicInfo.reimburserName ? `${row.basicInfo.reimburserName}(${row.basicInfo.reimburserNo || '-'})` : (row.basicInfo.reimburserNo || '-') }}
           </template>
         </el-table-column>
         <el-table-column label="报销部门" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ `${row.basicInfo.departmentName}(${row.basicInfo.departmentNo})` }}
+            {{ row.basicInfo.departmentName ? `${row.basicInfo.departmentName}(${row.basicInfo.departmentNo || '-'})` : (row.basicInfo.departmentNo || '-') }}
           </template>
         </el-table-column>
         <el-table-column
@@ -436,8 +436,6 @@ function handleBusinessTypeChange(values: string[]) {
 
 onMounted(async () => {
   await loadMasterData()
-  queryForm.value.companyIds = companies.value.map((c) => c.reimCompanyId)
-  queryForm.value.departmentIds = departments.value.map((d) => d.reimDepartmentId)
   store.query = { ...queryForm.value }
   store.fetchReimbursements()
 })
