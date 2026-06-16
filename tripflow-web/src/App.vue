@@ -2,14 +2,24 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Fold, Expand } from '@element-plus/icons-vue'
+import { useReimbursementStore } from '@/stores/reimbursementStore'
 
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(true)
+const reimbursementStore = useReimbursementStore()
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/reimbursement')) return '/reimbursement'
   return route.path
+})
+
+const isReimbursementEditPage = computed(() => {
+  return route.name === 'reimbursement-new' || route.name === 'reimbursement-edit'
+})
+
+const currentDate = computed(() => {
+  return reimbursementStore.currentReimbursement?.createdAt || new Date().toISOString().split('T')[0]
 })
 
 const menuItems = [
@@ -48,13 +58,17 @@ function navigate(path: string) {
 
     <el-container>
       <el-header class="header">
-        <h2>{{ route.meta.title }}</h2>
         <div class="collapse-btn" @click="collapsed = !collapsed">
           <el-icon :size="16">
             <Expand v-if="collapsed" />
             <Fold v-else />
           </el-icon>
         </div>
+        <h2 v-if="!isReimbursementEditPage">{{ route.meta.title }}</h2>
+        <template v-else>
+          <h1 class="document-title">差旅费用报销单</h1>
+          <span class="document-date">提单日期 {{ currentDate }}</span>
+        </template>
       </el-header>
       <el-main class="main">
         <router-view />
@@ -69,7 +83,9 @@ function navigate(path: string) {
 }
 
 .aside {
-  position: relative;
+  position: sticky;
+  top: 0;
+  height: 100vh;
   z-index: 20;
   background: #0f172a;
   color: #e2e8f0;
@@ -133,14 +149,43 @@ function navigate(path: string) {
 .header {
   display: flex;
   align-items: center;
-  gap: 8px;
   border-bottom: 1px solid #e2e8f0;
   background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .header h2 {
   margin: 0;
   font-size: 18px;
+  flex: 1;
+  text-align: center;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex: 1;
+}
+
+.document-title {
+  font-size: 20px;
+  font-weight: bold;
+  color: #303133;
+  margin: 0;
+  text-align: center;
+  flex: 1;
+  padding-left: 5%;
+}
+
+.document-date {
+  font-size: 14px;
+  color: #606266;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .collapse-btn {
