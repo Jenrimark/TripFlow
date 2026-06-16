@@ -38,7 +38,13 @@ function navigate(path: string) {
   <el-container class="layout">
     <el-aside :width="collapsed ? '0px' : '220px'" class="aside">
       <div class="brand" :class="{ 'brand--collapsed': collapsed }">
-        <span class="brand-mark">TF</span>
+        <svg class="brand-icon" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#2563eb"/>
+          <path d="M12 50 Q36 42 52 18" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="12" cy="50" r="3.5" fill="white" fill-opacity="0.8"/>
+          <circle cx="52" cy="18" r="3.5" fill="white" fill-opacity="0.8"/>
+          <g transform="translate(34,30) rotate(-40)"><path d="M0,-12 L4,-4 L12,0 L4,2 L3,8 L0,4 L-3,8 L-4,2 L-12,0 L-4,-4 Z" fill="white"/></g>
+        </svg>
         <div v-show="!collapsed" class="brand-text">
           <strong>TripFlow</strong>
           <p>差旅报销 · 流程审批</p>
@@ -58,12 +64,23 @@ function navigate(path: string) {
 
     <el-container>
       <el-header class="header">
-        <div class="collapse-btn" @click="collapsed = !collapsed">
-          <el-icon :size="16">
-            <Expand v-if="collapsed" />
-            <Fold v-else />
-          </el-icon>
-        </div>
+        <template v-if="!collapsed">
+          <div class="collapse-btn" @click="collapsed = true">
+            <el-icon :size="16"><Fold /></el-icon>
+          </div>
+        </template>
+        <template v-else>
+          <div class="header-brand" @click="collapsed = false">
+            <svg class="header-brand-icon" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+              <rect width="64" height="64" rx="14" fill="#2563eb"/>
+              <path d="M12 50 Q36 42 52 18" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="3" stroke-linecap="round"/>
+              <circle cx="12" cy="50" r="3.5" fill="white" fill-opacity="0.8"/>
+              <circle cx="52" cy="18" r="3.5" fill="white" fill-opacity="0.8"/>
+              <g transform="translate(34,30) rotate(-40)"><path d="M0,-12 L4,-4 L12,0 L4,2 L3,8 L0,4 L-3,8 L-4,2 L-12,0 L-4,-4 Z" fill="white"/></g>
+            </svg>
+            <span class="header-brand-name">TripFlow</span>
+          </div>
+        </template>
         <h2 v-if="!isReimbursementEditPage">{{ route.meta.title }}</h2>
         <template v-else>
           <h1 class="document-title">差旅费用报销单</h1>
@@ -109,16 +126,9 @@ function navigate(path: string) {
   padding: 20px 12px;
 }
 
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.brand-icon {
   width: 40px;
   height: 40px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #38bdf8, #6366f1);
-  color: #fff;
-  font-weight: 700;
   flex-shrink: 0;
 }
 
@@ -163,6 +173,49 @@ function navigate(path: string) {
   text-align: center;
 }
 
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 12px;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  color: #64748b;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.collapse-btn:hover {
+  color: #0f172a;
+  background: #e2e8f0;
+}
+
+.header-brand-icon {
+  width: 28px;
+  height: 28px;
+}
+
+.header-brand-name {
+  font-size: 15px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #38bdf8, #6366f1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 .header-center {
   display: flex;
   align-items: center;
@@ -186,24 +239,6 @@ function navigate(path: string) {
   color: #606266;
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.collapse-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  color: #64748b;
-  cursor: pointer;
-  transition: color 0.2s, background 0.2s;
-  flex-shrink: 0;
-}
-
-.collapse-btn:hover {
-  color: #0f172a;
-  background: #e2e8f0;
 }
 
 .main {
