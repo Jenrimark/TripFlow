@@ -75,3 +75,4 @@ tripflow-web/cypress/screenshots/
 __screenshots__/
 
 *.timestamp-*-*.mjs
+docs/
