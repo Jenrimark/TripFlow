@@ -38,7 +38,7 @@
         <!-- 补助汇总 -->
         <div class="sidebar-summary">
           <div class="summary-row">
-            <span class="summary-label">补助金额</span>
+            <span class="summary-label">申请金额</span>
             <span class="summary-currency">CNY</span>
             <span class="summary-value">{{ formatAmount(totalStandardAmount).replace('¥', '') }}</span>
           </div>
@@ -239,9 +239,15 @@ const dayStandardTotal = computed(() => {
   return first.mealAllowance + first.transportAllowance + first.communicationAllowance
 })
 
-// 标准总额 = 每天标准 × 天数
+// 标准总额 = 勾选项的标准金额之和
 const totalStandardAmount = computed(() => {
-  return dayStandardTotal.value * (props.allowance?.allowanceDays || calendarData.value.length)
+  return calendarData.value.reduce((sum, item) => {
+    let dayTotal = 0
+    if (item.mealSelected) dayTotal += item.mealAllowance
+    if (item.transportSelected) dayTotal += item.transportAllowance
+    if (item.communicationSelected) dayTotal += item.communicationAllowance
+    return sum + dayTotal
+  }, 0)
 })
 
 // 实际补助金额

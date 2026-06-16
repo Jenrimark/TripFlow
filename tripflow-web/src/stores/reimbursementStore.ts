@@ -273,7 +273,13 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
 
     const allowanceDays = calculateDaysBetween(record.departureDate, record.arrivalDate)
     const totalApplyAmount = calendar.reduce(
-      (sum, c) => sum + c.mealAllowance + c.transportAllowance + c.communicationAllowance,
+      (sum, c) => {
+        let dayTotal = 0
+        if (c.mealSelected) dayTotal += c.mealAllowance
+        if (c.transportSelected) dayTotal += c.transportAllowance
+        if (c.communicationSelected) dayTotal += c.communicationAllowance
+        return sum + dayTotal
+      },
       0,
     )
 
@@ -333,7 +339,13 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
             record.arrivalCityId || currentReimbursement.value.travelRecords.find((r) => r.id === id)?.arrivalCityId || '',
           )
           allowance.totalApplyAmount = allowance.calendar.reduce(
-            (sum, c) => sum + c.mealAllowance + c.transportAllowance + c.communicationAllowance,
+            (sum, c) => {
+              let dayTotal = 0
+              if (c.mealSelected) dayTotal += c.mealAllowance
+              if (c.transportSelected) dayTotal += c.transportAllowance
+              if (c.communicationSelected) dayTotal += c.communicationAllowance
+              return sum + dayTotal
+            },
             0,
           )
         }
@@ -360,6 +372,13 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
         if (c.mealSelected) dayTotal += c.mealAmount
         if (c.transportSelected) dayTotal += c.transportAmount
         if (c.communicationSelected) dayTotal += c.communicationAmount
+        return sum + dayTotal
+      }, 0)
+      allowance.totalApplyAmount = calendar.reduce((sum, c) => {
+        let dayTotal = 0
+        if (c.mealSelected) dayTotal += c.mealAllowance
+        if (c.transportSelected) dayTotal += c.transportAllowance
+        if (c.communicationSelected) dayTotal += c.communicationAllowance
         return sum + dayTotal
       }, 0)
     }
