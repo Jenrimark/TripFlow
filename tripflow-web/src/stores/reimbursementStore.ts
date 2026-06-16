@@ -139,6 +139,10 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
   }
 
   async function submitReimbursement() {
+    const errors = validateBeforeSubmit()
+    if (errors.length > 0) {
+      throw new Error(errors[0])
+    }
     if (currentReimbursement.value) {
       currentReimbursement.value.createdAt = new Date().toISOString().split('T')[0]!
     }
@@ -501,6 +505,23 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     if (!basicInfo.businessTypeId) errors.push('请选择业务类型')
 
     if (travelRecords.length === 0) errors.push('请至少添加一条补录行程')
+
+    // 校验所有行程是否有同一人员日期重叠
+    for (let i = 0; i < travelRecords.length; i++) {
+      for (let j = i + 1; j < travelRecords.length; j++) {
+        if (travelRecords[i]!.reimburserId === travelRecords[j]!.reimburserId) {
+          const overlap = checkTravelRecordOverlap(
+            [travelRecords[i]!],
+            travelRecords[j]!,
+          )
+          if (overlap) {
+            errors.push(`行程记录存在重复：${travelRecords[j]!.reimburserName} 在 ${overlap.departureDate} ~ ${overlap.arrivalDate} 已有行程`)
+            break
+          }
+        }
+      }
+    }
+
     if (allowances.length === 0) errors.push('请至少添加一条补助信息')
     if (costAllocations.length === 0) errors.push('请至少添加一条分摊信息')
 
