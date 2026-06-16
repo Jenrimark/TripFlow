@@ -109,6 +109,11 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     }
     syncTotalsToCurrent()
     const snapshot = JSON.parse(JSON.stringify(currentReimbursement.value)) as Reimbursement
+    // 清理空字符串的可选字段
+    for (const record of snapshot.travelRecords) {
+      if (!record.departureDatetime) record.departureDatetime = null as any
+      if (!record.arrivalDatetime) record.arrivalDatetime = null as any
+    }
     // 过滤掉完全空的分摊记录（暂存时可能有默认的空记录）
     snapshot.costAllocations = snapshot.costAllocations.filter(a =>
       a.companyId || a.projectId || a.ratio > 0 || a.amount > 0
@@ -298,12 +303,27 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
       }
 
       const allowance = currentReimbursement.value.allowances.find((a) => a.travelRecordId === id)
-      if (allowance && record.arrivalCityId) {
-        allowance.calendar = generateAllowanceCalendar(
-          record.departureDate || allowance.departureDate,
-          record.arrivalDate || allowance.arrivalDate,
-          record.arrivalCityId,
-        )
+      if (allowance) {
+        if (record.arrivalCityId || record.departureCityName || record.arrivalCityName) {
+          allowance.departureCity = record.departureCityName || allowance.departureCity
+          allowance.arrivalCity = record.arrivalCityName || allowance.arrivalCity
+        }
+        if (record.departureDate || record.arrivalDate) {
+          allowance.departureDate = record.departureDate || allowance.departureDate
+          allowance.arrivalDate = record.arrivalDate || allowance.arrivalDate
+          allowance.allowanceDays = calculateDaysBetween(allowance.departureDate, allowance.arrivalDate)
+        }
+        if (record.arrivalCityId || record.departureDate || record.arrivalDate) {
+          allowance.calendar = generateAllowanceCalendar(
+            allowance.departureDate,
+            allowance.arrivalDate,
+            record.arrivalCityId || currentReimbursement.value.travelRecords.find((r) => r.id === id)?.arrivalCityId || '',
+          )
+          allowance.totalApplyAmount = allowance.calendar.reduce(
+            (sum, c) => sum + c.mealAllowance + c.transportAllowance + c.communicationAllowance,
+            0,
+          )
+        }
       }
     }
   }
