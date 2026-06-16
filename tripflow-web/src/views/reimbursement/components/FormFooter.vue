@@ -12,9 +12,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, h } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElAlert } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
 import { useReimbursementPageMode } from '@/composables/useReimbursementPageMode'
 import { DocumentStatus } from '@/types/reimbursement'
@@ -30,6 +30,48 @@ const isVoided = computed(() => store.currentReimbursement?.status === DocumentS
 
 const isNewPage = computed(() => !store.currentReimbursement?.id)
 
+// 检测是否所有非必填项都已填写
+const hasUnfilledOptional = computed(() => {
+  const reimbursement = store.currentReimbursement
+  if (!reimbursement) return true
+
+  // 检测行程记录是否完整
+  const trips = reimbursement.travelRecords || []
+  if (trips.length === 0) return true
+
+  // 检测费用记录是否完整
+  const expenses = reimbursement.expenses || []
+  if (expenses.length === 0) return true
+
+  // 检测行程记录中的可选项
+  for (const trip of trips) {
+    if (!trip.tripDescription) return true
+    if (!trip.departureTime) return true
+    if (!trip.arrivalTime) return true
+    if (!trip.departurePlace) return true
+    if (!trip.arrivalPlace) return true
+    if (!trip.transportType) return true
+  }
+
+  // 检测费用记录中的可选项
+  for (const expense of expenses) {
+    if (!expense.description) return true
+  }
+
+  // 检测备注
+  if (!reimbursement.remark) return true
+
+  // 检测分摊信息
+  const allocations = reimbursement.costAllocations || []
+  if (allocations.length === 0) return true
+
+  for (const allocation of allocations) {
+    if (allocation.percentage === null || allocation.percentage === undefined) return true
+  }
+
+  return false
+})
+
 function handleClose() {
   if (isViewMode.value) {
     router.back()
@@ -37,28 +79,18 @@ function handleClose() {
   }
 
   ElMessageBox.confirm(
-    '请选择操作：',
-    '关闭确认',
+    '关闭将放弃当前已修改内容',
+    '提示',
     {
       type: 'warning',
-      confirmButtonText: '暂存',
-      cancelButtonText: '关闭',
+      confirmButtonText: '确认关闭',
+      cancelButtonText: '取消',
       distinguishCancelAndClose: true,
-      closeOnClickModal: false,
+      closeOnClickModal: true,
     },
-  ).then(async () => {
-    try {
-      await store.saveReimbursement()
-      ElMessage.success('暂存成功')
-      router.push('/reimbursement')
-    } catch {
-      ElMessage.error('暂存失败')
-    }
-  }).catch((action) => {
-    if (action === 'cancel') {
-      router.push('/reimbursement')
-    }
-  })
+  ).then(() => {
+    router.push('/reimbursement')
+  }).catch(() => {})
 }
 
 async function handleSubmit() {

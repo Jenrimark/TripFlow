@@ -180,12 +180,12 @@
         </el-table-column>
         <el-table-column label="报销人" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.basicInfo.reimburserName ? `${row.basicInfo.reimburserName}(${row.basicInfo.reimburserNo || '-'})` : (row.basicInfo.reimburserNo || '-') }}
+            {{ row.basicInfo?.reimburserName ? `${row.basicInfo.reimburserName}(${row.basicInfo.reimburserNo || '-'})` : (row.basicInfo?.reimburserNo || '-') }}
           </template>
         </el-table-column>
         <el-table-column label="报销部门" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            {{ row.basicInfo.departmentName ? `${row.basicInfo.departmentName}(${row.basicInfo.departmentNo || '-'})` : (row.basicInfo.departmentNo || '-') }}
+            {{ row.basicInfo?.departmentName ? `${row.basicInfo.departmentName}(${row.basicInfo.departmentNo || '-'})` : (row.basicInfo?.departmentNo || '-') }}
           </template>
         </el-table-column>
         <el-table-column
@@ -204,7 +204,7 @@
         <el-table-column prop="basicInfo.title" label="报销标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <el-link type="primary" @click="handleEdit(row)">
-              {{ row.basicInfo.title }}
+              {{ row.basicInfo?.title }}
             </el-link>
           </template>
         </el-table-column>

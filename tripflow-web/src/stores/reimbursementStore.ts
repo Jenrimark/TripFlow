@@ -78,7 +78,11 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
         pageSize.value,
       )
       console.log('[DEBUG-fetchReimbursements] API response:', JSON.stringify(data.list.slice(0, 2), null, 2))
-      reimbursementList.value = data.list
+      // 兜底: 确保 basicInfo 不为 null，避免模板渲染崩溃
+      reimbursementList.value = data.list.map((item: any) => ({
+        ...item,
+        basicInfo: item.basicInfo ?? {},
+      }))
       total.value = data.total
     } finally {
       loading.value = false
@@ -386,6 +390,10 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
         return sum + dayTotal
       }, 0)
     }
+    // 补助金额变更后，同步重算所有分摊行的金额
+    if (currentReimbursement.value.costAllocations.length > 0) {
+      recalcFromRealRatios()
+    }
   }
 
   function addCostAllocation() {
@@ -415,15 +423,16 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     for (let i = 1; i < allocations.length; i++) {
       othersSum += allocations[i]!.realRatio
     }
-    allocations[0]!.realRatio = 1 - othersSum
+    // 四舍五入到8位小数，消除 1 - 0.8 = 0.19999999999999996 这类浮点误差
+    allocations[0]!.realRatio = Math.round((1 - othersSum) * 1e8) / 1e8
 
-    // ratio（显示）：第2行起四舍，第1行 = 100 - sum(其余ratio)
+    // ratio（显示）：第2行起四舍五入，第1行 = 100 - sum(其余ratio)
     let othersRatioDisplaySum = 0
     for (let i = 1; i < allocations.length; i++) {
       allocations[i]!.ratio = Math.floor(allocations[i]!.realRatio * 10000) / 10000 // 两位小数截断
       othersRatioDisplaySum += allocations[i]!.ratio
     }
-    allocations[0]!.ratio = Math.floor((1 - othersRatioDisplaySum) * 10000) / 10000
+    allocations[0]!.ratio = Math.round((1 - othersRatioDisplaySum) * 10000) / 10000
 
     // 金额按 realRatio 计算，最后一分钱差额给第一行
     let othersAmountSum = 0
