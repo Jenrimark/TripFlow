@@ -10,7 +10,7 @@
         v-model="remark"
         type="textarea"
         placeholder="请输入备注信息"
-        maxlength="500"
+        maxlength="1000"
         show-word-limit
         :rows="4"
         :disabled="isViewMode"
