@@ -112,30 +112,34 @@ export function generateAllowanceCalendar(
 }
 
 /**
- * 检查时间范围是否完全重叠
+ * 检查两个时间段是否有任何重叠（精确到分钟，重叠1分钟即算重叠）
+ * 使用 departureDatetime/arrivalDatetime（精确时间），若无则降级为 departureDate/arrivalDate（日精度）
  */
-export function isDateRangeFullyOverlapping(
-  range1: { start: string; end: string },
-  range2: { start: string; end: string },
-): boolean {
-  return range1.start === range2.start && range1.end === range2.end
+export function getEffectiveTimeRange(record: TravelRecord): { start: string; end: string } {
+  const start = record.departureDatetime || record.departureDate
+  const end = record.arrivalDatetime || record.arrivalDate + ' 23:59:59'
+  return { start, end }
 }
 
 /**
- * 检查同一人员的时间范围是否完全重叠
+ * 检查同一人员的时间范围是否有任何重叠（哪怕重叠一分钟也算重叠）
  */
 export function checkTravelRecordOverlap(
   records: TravelRecord[],
   newRecord: TravelRecord,
-): boolean {
-  return records.some(
-    (record) =>
-      record.reimburserId === newRecord.reimburserId &&
-      isDateRangeFullyOverlapping(
-        { start: record.departureDate, end: record.arrivalDate },
-        { start: newRecord.departureDate, end: newRecord.arrivalDate },
-      ),
-  )
+): TravelRecord | null {
+  const newRange = getEffectiveTimeRange(newRecord)
+  for (const record of records) {
+    if (record.reimburserId !== newRecord.reimburserId) continue
+    // 编辑时跳过自身
+    if ((record as any).id && (newRecord as any).id && (record as any).id === (newRecord as any).id) continue
+    const existingRange = getEffectiveTimeRange(record)
+    // 区间有交集即重叠：start1 < end2 && start2 < end1
+    if (newRange.start < existingRange.end && existingRange.start < newRange.end) {
+      return record
+    }
+  }
+  return null
 }
 
 /**

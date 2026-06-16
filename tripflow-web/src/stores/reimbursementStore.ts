@@ -254,8 +254,9 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
   function addTravelRecord(record: Omit<TravelRecord, 'id'>) {
     if (!currentReimbursement.value) return
 
-    if (checkTravelRecordOverlap(currentReimbursement.value.travelRecords, record as TravelRecord)) {
-      throw new Error('存在完全重叠的行程记录')
+    const conflictRecord = checkTravelRecordOverlap(currentReimbursement.value.travelRecords, record as TravelRecord)
+    if (conflictRecord) {
+      throw new Error(`该出行人员在 ${conflictRecord.departureDate} ~ ${conflictRecord.arrivalDate} 已有行程，时间段存在重叠`)
     }
 
     const newRecord: TravelRecord = {
@@ -295,6 +296,18 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
 
   function updateTravelRecord(id: string, record: Partial<TravelRecord>) {
     if (!currentReimbursement.value) return
+    const existing = currentReimbursement.value.travelRecords.find((r) => r.id === id)
+    if (!existing) return
+
+    // 构造更新后的完整记录，用于校验重叠
+    const updatedRecord = { ...existing, ...record }
+    // 排除自身，检查与其他记录是否有重叠
+    const otherRecords = currentReimbursement.value.travelRecords.filter((r) => r.id !== id)
+    const conflictRecord = checkTravelRecordOverlap(otherRecords, updatedRecord)
+    if (conflictRecord) {
+      throw new Error(`该出行人员在 ${conflictRecord.departureDate} ~ ${conflictRecord.arrivalDate} 已有行程，时间段存在重叠`)
+    }
+
     const index = currentReimbursement.value.travelRecords.findIndex((r) => r.id === id)
     if (index !== -1) {
       currentReimbursement.value.travelRecords[index] = {
