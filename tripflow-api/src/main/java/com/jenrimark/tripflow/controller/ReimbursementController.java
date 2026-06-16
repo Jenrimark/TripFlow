@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @RestController
@@ -152,6 +153,8 @@ public class ReimbursementController {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
             }
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (DateTimeParseException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "日期时间格式不正确：" + e.getMessage());
         }
     }
 

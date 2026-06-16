@@ -50,6 +50,8 @@ INSERT INTO reimbursement (
                 'arrivalCityName', '北京',
                 'departureDate', '2025-05-10',
                 'arrivalDate', '2025-05-12',
+                'departureDatetime', '2025-05-10 08:30:00',
+                'arrivalDatetime', '2025-05-12 18:00:00',
                 'description', '拜访北京重点客户，洽谈项目合作事宜'
             )
         ),
@@ -113,11 +115,11 @@ DELETE FROM reimbursement_cost_allocation WHERE reimbursement_id = @reim_id_1;
 INSERT INTO reimbursement_travel_record (
     reimbursement_id, record_key, reimburser_id, reimburser_name, reimburser_no,
     departure_city_id, departure_city_name, arrival_city_id, arrival_city_name,
-    departure_date, arrival_date, description
+    departure_date, arrival_date, departure_datetime, arrival_datetime, description
 ) VALUES (
     @reim_id_1, 'travel_001', '13AB3A3F72409002', '徐年年', '74541',
     '10458', '武汉', '10119', '北京',
-    '2025-05-10', '2025-05-12', '拜访北京重点客户，洽谈项目合作事宜'
+    '2025-05-10', '2025-05-12', '2025-05-10 08:30:00', '2025-05-12 18:00:00', '拜访北京重点客户，洽谈项目合作事宜'
 );
 
 INSERT INTO reimbursement_allowance (
@@ -197,6 +199,8 @@ INSERT INTO reimbursement (
                 'arrivalCityName', '杭州',
                 'departureDate', '2025-05-15',
                 'arrivalDate', '2025-05-17',
+                'departureDatetime', '2025-05-15 09:00:00',
+                'arrivalDatetime', '2025-05-17 17:30:00',
                 'description', '参加杭州行业展会及客户拜访'
             )
         ),
@@ -260,11 +264,11 @@ DELETE FROM reimbursement_cost_allocation WHERE reimbursement_id = @reim_id_2;
 INSERT INTO reimbursement_travel_record (
     reimbursement_id, record_key, reimburser_id, reimburser_name, reimburser_no,
     departure_city_id, departure_city_name, arrival_city_id, arrival_city_name,
-    departure_date, arrival_date, description
+    departure_date, arrival_date, departure_datetime, arrival_datetime, description
 ) VALUES (
     @reim_id_2, 'travel_002', '13AB498CC6409002', '郑雨雪', '74008',
     '10621', '上海', '10216', '杭州',
-    '2025-05-15', '2025-05-17', '参加杭州行业展会及客户拜访'
+    '2025-05-15', '2025-05-17', '2025-05-15 09:00:00', '2025-05-17 17:30:00', '参加杭州行业展会及客户拜访'
 );
 
 INSERT INTO reimbursement_allowance (
@@ -344,6 +348,8 @@ INSERT INTO reimbursement (
                 'arrivalCityName', '荆州',
                 'departureDate', '2025-05-08',
                 'arrivalDate', '2025-05-09',
+                'departureDatetime', '2025-05-08 07:00:00',
+                'arrivalDatetime', '2025-05-09 21:00:00',
                 'description', '客户系统故障现场排查与修复'
             )
         ),
@@ -406,11 +412,11 @@ DELETE FROM reimbursement_cost_allocation WHERE reimbursement_id = @reim_id_3;
 INSERT INTO reimbursement_travel_record (
     reimbursement_id, record_key, reimburser_id, reimburser_name, reimburser_no,
     departure_city_id, departure_city_name, arrival_city_id, arrival_city_name,
-    departure_date, arrival_date, description
+    departure_date, arrival_date, departure_datetime, arrival_datetime, description
 ) VALUES (
     @reim_id_3, 'travel_003', '13AB4A56BB009002', '邹薇', '21552',
     '10458', '武汉', '10455', '荆州',
-    '2025-05-08', '2025-05-09', '客户系统故障现场排查与修复'
+    '2025-05-08', '2025-05-09', '2025-05-08 07:00:00', '2025-05-09 21:00:00', '客户系统故障现场排查与修复'
 );
 
 INSERT INTO reimbursement_allowance (

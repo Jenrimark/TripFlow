@@ -1015,6 +1015,8 @@ public class ReimbursementServiceImpl extends ServiceImpl<ReimbursementMapper, R
         merged.setArrivalCityName(incoming.getArrivalCityName() != null ? incoming.getArrivalCityName() : existing.getArrivalCityName());
         merged.setDepartureDate(incoming.getDepartureDate() != null ? incoming.getDepartureDate() : existing.getDepartureDate());
         merged.setArrivalDate(incoming.getArrivalDate() != null ? incoming.getArrivalDate() : existing.getArrivalDate());
+        merged.setDepartureDatetime(incoming.getDepartureDatetime() != null ? incoming.getDepartureDatetime() : existing.getDepartureDatetime());
+        merged.setArrivalDatetime(incoming.getArrivalDatetime() != null ? incoming.getArrivalDatetime() : existing.getArrivalDatetime());
         merged.setDescription(incoming.getDescription() != null ? incoming.getDescription() : existing.getDescription());
         return merged;
     }

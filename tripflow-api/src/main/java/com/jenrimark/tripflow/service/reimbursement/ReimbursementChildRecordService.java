@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,6 +25,7 @@ import java.util.List;
 public class ReimbursementChildRecordService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final ReimbursementTravelRecordMapper travelRecordMapper;
     private final ReimbursementAllowanceMapper allowanceMapper;
@@ -138,6 +140,12 @@ public class ReimbursementChildRecordService {
                 entity.setArrivalCityName(record.getArrivalCityName());
                 entity.setDepartureDate(LocalDate.parse(record.getDepartureDate()));
                 entity.setArrivalDate(LocalDate.parse(record.getArrivalDate()));
+                if (record.getDepartureDatetime() != null) {
+                    entity.setDepartureDatetime(LocalDateTime.parse(record.getDepartureDatetime(), DATETIME_FMT));
+                }
+                if (record.getArrivalDatetime() != null) {
+                    entity.setArrivalDatetime(LocalDateTime.parse(record.getArrivalDatetime(), DATETIME_FMT));
+                }
                 entity.setDescription(record.getDescription());
                 travelRecordMapper.insert(entity);
             }
