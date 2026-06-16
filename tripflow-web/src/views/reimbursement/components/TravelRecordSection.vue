@@ -54,12 +54,14 @@
       :record="currentRecord"
       :mode="modalMode"
       @save="handleSave"
+      @auto-save="handleAutoSave"
+      @revert="handleRevert"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Plus, ArrowDown, Delete, EditPen, CopyDocument } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
@@ -74,6 +76,7 @@ const expanded = ref(true)
 const modalVisible = ref(false)
 const modalMode = ref<'add' | 'edit' | 'copy'>('add')
 const currentRecord = ref<TravelRecord | null>(null)
+let snapshotBeforeEdit: TravelRecord | null = null
 
 const travelRecords = computed(() => store.currentReimbursement?.travelRecords || [])
 
@@ -89,6 +92,7 @@ function handleAdd() {
 
 function handleEdit(record: TravelRecord) {
   modalMode.value = 'edit'
+  snapshotBeforeEdit = { ...record }
   currentRecord.value = { ...record }
   modalVisible.value = true
 }
@@ -120,6 +124,25 @@ function handleSave(record: Omit<TravelRecord, 'id'>) {
   }
   modalVisible.value = false
 }
+
+function handleAutoSave(record: Omit<TravelRecord, 'id'>) {
+  if (modalMode.value === 'edit' && currentRecord.value) {
+    store.updateTravelRecord(currentRecord.value.id, record)
+    snapshotBeforeEdit = { id: currentRecord.value.id, ...record } as TravelRecord
+  }
+}
+
+function handleRevert() {
+  if (modalMode.value === 'edit' && snapshotBeforeEdit) {
+    store.updateTravelRecord(snapshotBeforeEdit.id, snapshotBeforeEdit)
+    currentRecord.value = { ...snapshotBeforeEdit }
+    ElMessage.success('已撤回')
+  }
+}
+
+watch(modalVisible, (visible) => {
+  if (!visible) snapshotBeforeEdit = null
+})
 </script>
 
 <style scoped>

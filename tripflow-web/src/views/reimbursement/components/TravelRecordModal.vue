@@ -90,13 +90,13 @@
 
     <template #footer>
       <el-button @click="$emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" @click="handleSave">保存</el-button>
+      <el-button type="primary" @click="handleSave">确定</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { TravelRecord } from '@/types/reimbursement'
 import { useReimbursementMasterData } from '@/composables/useReimbursementMasterData'
@@ -112,6 +112,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:visible': [value: boolean]
   save: [record: Omit<TravelRecord, 'id'>]
+  autoSave: [record: Omit<TravelRecord, 'id'>]
+  revert: []
 }>()
 
 const formRef = ref<FormInstance>()
@@ -130,6 +132,41 @@ const formData = reactive<Omit<TravelRecord, 'id'>>({
   arrivalDatetime: '',
   description: '',
   dateRange: [] as string[],
+})
+
+const isEditMode = computed(() => props.mode === 'edit')
+
+function buildSavePayload(): Omit<TravelRecord, 'id'> | null {
+  if (formData.dateRange.length !== 2) return null
+  const [start, end] = formData.dateRange
+  formData.departureDatetime = start
+  formData.arrivalDatetime = end
+  formData.departureDate = start.slice(0, 10)
+  formData.arrivalDate = end.slice(0, 10)
+  return { ...formData }
+}
+
+function emitAutoSave() {
+  if (!isEditMode.value) return
+  const payload = buildSavePayload()
+  if (payload) emit('autoSave', payload)
+}
+
+function handleKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+    if (isEditMode.value) {
+      e.preventDefault()
+      emit('revert')
+    }
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
 })
 
 const rules: FormRules = {
@@ -187,9 +224,12 @@ async function handleSave() {
   })
 }
 
+let initializing = false
+
 watch(
   () => props.record,
   (newRecord) => {
+    initializing = true
     if (newRecord) {
       Object.assign(formData, {
         reimburserId: newRecord.reimburserId,
@@ -225,8 +265,20 @@ watch(
         description: '',
       })
     }
+    nextTick(() => { initializing = false })
   },
   { immediate: true },
+)
+
+watch(() => formData.dateRange, () => {
+  if (!initializing) emitAutoSave()
+})
+
+watch(
+  () => [formData.reimburserId, formData.departureCityId, formData.arrivalCityId, formData.description],
+  () => {
+    if (!initializing) emitAutoSave()
+  },
 )
 
 onMounted(() => {
@@ -260,4 +312,5 @@ onMounted(() => {
 :deep(.el-form-item) {
   margin-bottom: 22px;
 }
+
 </style>
