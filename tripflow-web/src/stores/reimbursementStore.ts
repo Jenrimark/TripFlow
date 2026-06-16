@@ -77,6 +77,7 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
         currentPage.value,
         pageSize.value,
       )
+      console.log('[DEBUG-fetchReimbursements] API response:', JSON.stringify(data.list.slice(0, 2), null, 2))
       reimbursementList.value = data.list
       total.value = data.total
     } finally {
