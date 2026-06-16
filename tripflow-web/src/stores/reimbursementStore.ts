@@ -84,6 +84,9 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
         basicInfo: item.basicInfo ?? {},
       }))
       total.value = data.total
+    } catch {
+      reimbursementList.value = []
+      total.value = 0
     } finally {
       loading.value = false
     }

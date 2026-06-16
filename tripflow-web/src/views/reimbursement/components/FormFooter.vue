@@ -149,7 +149,7 @@ async function handleSubmit() {
     dialog.setSuccess()
   } catch (err: any) {
     await stopProgressAnimation()
-    dialog.setError(err?.message || '提交失败')
+    dialog.setError(err?.displayMessage || err?.message || '提交失败')
   }
 
   submitting.value = false

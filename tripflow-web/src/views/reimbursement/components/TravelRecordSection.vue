@@ -131,8 +131,8 @@ async function handleAutoSave(record: Omit<TravelRecord, 'id'>) {
     snapshotBeforeEdit = { id: currentRecord.value.id, ...record } as TravelRecord
     try {
       await store.saveReimbursement()
-    } catch {
-      ElMessage.error('自动保存失败')
+    } catch (err: any) {
+      ElMessage.error(err?.displayMessage || '自动保存失败')
     }
   }
 }

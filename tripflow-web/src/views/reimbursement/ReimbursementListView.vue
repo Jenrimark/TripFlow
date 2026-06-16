@@ -350,8 +350,9 @@ async function handleCopy(row: Reimbursement) {
     await store.copyReimbursementFromId(row.id)
     ElMessage.success('复制成功')
     await router.push('/reimbursement/new')
-  } catch {
-    ElMessage.error('复制失败')
+  } catch (err: any) {
+    if (err === 'cancel') return // 用户取消了 confirm 对话框
+    ElMessage.error(err?.displayMessage || '复制失败')
   }
 }
 
@@ -371,8 +372,8 @@ async function handleDelete(row: Reimbursement) {
         await store.deleteReimbursement(row.id, row.version)
         await store.fetchReimbursements()
         ElMessage.success('删除成功')
-      } catch {
-        ElMessage.error('删除失败')
+      } catch (err: any) {
+        ElMessage.error(err?.displayMessage || '删除失败')
       }
     })
     return
@@ -395,8 +396,8 @@ async function handleDelete(row: Reimbursement) {
       await store.voidReimbursement(row.id, row.version)
       await store.fetchReimbursements()
       ElMessage.success('作废成功')
-    } catch {
-      ElMessage.error('作废失败')
+    } catch (err: any) {
+      ElMessage.error(err?.displayMessage || '作废失败')
     }
   } catch (action) {
     if (action === 'cancel') {
@@ -405,8 +406,8 @@ async function handleDelete(row: Reimbursement) {
         await store.deleteReimbursement(row.id, row.version)
         await store.fetchReimbursements()
         ElMessage.success('删除成功')
-      } catch {
-        ElMessage.error('删除失败')
+      } catch (err: any) {
+        ElMessage.error(err?.displayMessage || '删除失败')
       }
     }
     // close = 什么都不做
