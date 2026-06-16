@@ -211,12 +211,26 @@ function handleProjectChange(row: CostAllocation, projectId: string) {
 function handleRatioChange(index: number, value: string) {
   const ratio = parseFloat(value) / 100
   if (isNaN(ratio) || ratio < 0 || ratio > 1) {
+    const allocation = allocations.value[index]!
+    store.updateCostAllocation(allocation.id, { ratio: 0 })
+    nextTick(syncAllRatioDisplays)
     ElMessage.error('请输入有效的比例（0-100）')
     return
   }
 
   const allocation = allocations.value[index]!
   store.updateCostAllocation(allocation.id, { ratio })
+
+  // 校验：第2行起合计比例不能超过100%，超过则清空当前输入
+  const sumRatio = store.currentReimbursement?.costAllocations
+    .filter((_, i) => i > 0)
+    .reduce((sum, a) => sum + a.ratio, 0) ?? 0
+  if (sumRatio > 1) {
+    store.updateCostAllocation(allocation.id, { ratio: 0 })
+    nextTick(syncAllRatioDisplays)
+    ElMessage.error('分摊比例合计不能超过100%，已清空当前输入')
+    return
+  }
 }
 
 function handleAdd() {
