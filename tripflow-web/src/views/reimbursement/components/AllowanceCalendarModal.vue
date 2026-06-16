@@ -64,20 +64,19 @@
 
         <div class="table-wrapper">
           <el-table :data="calendarData" :header-cell-style="{ background: '#f5f7fa', color: '#303133', fontWeight: 600 }">
-            <el-table-column label="出差日期" width="100">
+            <el-table-column label="出差日期" width="120">
               <template #default="{ row, $index }">
                 <div class="date-cell">
                   <span class="date-main">{{ row.date }}</span>
-                  <span class="date-weekday">{{ row.weekday }}</span>
+                  <span class="date-weekday-row">
+                    <span class="date-weekday">{{ row.weekday }}</span>
+                    <el-checkbox
+                      class="row-select-check"
+                      v-model="row.allSelected"
+                      @change="(val: boolean) => handleSelectDate($index, val)"
+                    />
+                  </span>
                 </div>
-              </template>
-            </el-table-column>
-            <el-table-column width="40" align="center" class-name="row-select-col">
-              <template #default="{ row, $index }">
-                <el-checkbox
-                  v-model="row.allSelected"
-                  @change="(val: boolean) => handleSelectDate($index, val)"
-                />
               </template>
             </el-table-column>
             <el-table-column prop="arrivalCity" label="补助城市" width="100">
@@ -101,7 +100,7 @@
                   <div class="amount-input">
                     <el-checkbox
                       v-model="row.mealSelected"
-                      @change="(val: boolean) => { row.mealAmount = val ? row.mealAllowance : 0 }"
+                      @change="(val: boolean) => { row.mealAmount = val ? row.mealAllowance : 0; row.allSelected = row.mealSelected && row.transportSelected && row.communicationSelected }"
                     />
                     <el-input-number
                       v-model="row.mealAmount"
@@ -128,7 +127,7 @@
                   <div class="amount-input">
                     <el-checkbox
                       v-model="row.transportSelected"
-                      @change="(val: boolean) => { row.transportAmount = val ? row.transportAllowance : 0 }"
+                      @change="(val: boolean) => { row.transportAmount = val ? row.transportAllowance : 0; row.allSelected = row.mealSelected && row.transportSelected && row.communicationSelected }"
                     />
                     <el-input-number
                       v-model="row.transportAmount"
@@ -155,7 +154,7 @@
                   <div class="amount-input">
                     <el-checkbox
                       v-model="row.communicationSelected"
-                      @change="(val: boolean) => { row.communicationAmount = val ? row.communicationAllowance : 0 }"
+                      @change="(val: boolean) => { row.communicationAmount = val ? row.communicationAllowance : 0; row.allSelected = row.mealSelected && row.transportSelected && row.communicationSelected }"
                     />
                     <el-input-number
                       v-model="row.communicationAmount"
@@ -298,6 +297,7 @@ function handleSelectAllMeal(val: boolean) {
   calendarData.value.forEach((item) => {
     item.mealSelected = val
     item.mealAmount = val ? item.mealAllowance : 0
+    item.allSelected = item.mealSelected && item.transportSelected && item.communicationSelected
   })
 }
 
@@ -305,6 +305,7 @@ function handleSelectAllTransport(val: boolean) {
   calendarData.value.forEach((item) => {
     item.transportSelected = val
     item.transportAmount = val ? item.transportAllowance : 0
+    item.allSelected = item.mealSelected && item.transportSelected && item.communicationSelected
   })
 }
 
@@ -312,6 +313,7 @@ function handleSelectAllCommunication(val: boolean) {
   calendarData.value.forEach((item) => {
     item.communicationSelected = val
     item.communicationAmount = val ? item.communicationAllowance : 0
+    item.allSelected = item.mealSelected && item.transportSelected && item.communicationSelected
   })
 }
 
@@ -440,7 +442,7 @@ watch(
   border: 1px solid #ebeef5;
   border-radius: 8px;
   padding: 16px;
-  margin-top: auto;
+  margin-top: 24px;
 }
 
 .summary-row {
@@ -517,11 +519,23 @@ watch(
 .date-main {
   font-size: 13px;
   color: #303133;
+  white-space: nowrap;
+}
+
+.date-weekday-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .date-weekday {
   font-size: 12px;
   color: #909399;
+  white-space: nowrap;
+}
+
+.row-select-check {
+  flex-shrink: 0;
 }
 
 /* 城市列 */
@@ -566,10 +580,6 @@ watch(
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-}
-
-:deep(.row-select-col .cell) {
-  padding: 0 4px;
 }
 
 </style>
