@@ -83,17 +83,29 @@
         </el-form-item>
 
         <el-form-item label="业务类型" prop="businessTypeId">
-          <el-tree-select
-            ref="businessTypeSelectRef"
-            v-model="formData.businessTypeId"
-            :data="businessTypes"
-            :props="{ label: 'businessTypeName', value: 'businessTypeId' }"
-            check-strictly
-            placeholder="请选择业务类型"
-            :disabled="isViewMode"
-            @change="handleBusinessTypeChange"
-            @node-click="handleBusinessTypeNodeClick"
-          />
+          <div class="business-type-tree-select" @click.stop="toggleBusinessTypeDropdown">
+            <el-input
+              :model-value="formData.businessTypeName || formData.businessTypeId"
+              placeholder="请选择业务类型"
+              readonly
+              :disabled="isViewMode"
+              class="business-type-input"
+            />
+            <el-icon v-if="!isViewMode" class="business-type-icon">
+              <ArrowDown />
+            </el-icon>
+          </div>
+          <div v-if="showBusinessTypeTree && !isViewMode" class="business-type-dropdown" @click.stop>
+            <el-tree
+              ref="businessTypeTreeRef"
+              :data="businessTypes"
+              :props="{ label: 'businessTypeName', value: 'businessTypeId' }"
+              node-key="businessTypeId"
+              highlight-current
+              :expand-on-click-node="false"
+              @node-click="handleBusinessTypeNodeClick"
+            />
+          </div>
         </el-form-item>
       </el-form>
     </div>
@@ -101,7 +113,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ArrowDown } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
@@ -115,8 +127,9 @@ const store = useReimbursementStore()
 const { isViewMode } = useReimbursementPageMode()
 const { companies, reimbursers, businessTypes, departments, loadMasterData } = useReimbursementMasterData()
 const formRef = ref<FormInstance>()
-const businessTypeSelectRef = ref()
+const businessTypeTreeRef = ref()
 const expanded = ref(true)
+const showBusinessTypeTree = ref(false)
 
 const formData = reactive<ReimbursementBasicInfo>({
   title: '',
@@ -147,8 +160,28 @@ function toggleExpanded() {
   expanded.value = !expanded.value
 }
 
-function handleBusinessTypeNodeClick(_data: any, node: any) {
-  if (!node.isLeaf) {
+function toggleBusinessTypeDropdown() {
+  if (!isViewMode.value) {
+    showBusinessTypeTree.value = !showBusinessTypeTree.value
+  }
+}
+
+function handleClickOutside(event: MouseEvent) {
+  const target = event.target as HTMLElement
+  if (!target.closest('.business-type-tree-select') && !target.closest('.business-type-dropdown')) {
+    showBusinessTypeTree.value = false
+  }
+}
+
+function handleBusinessTypeNodeClick(data: BusinessType, node: any) {
+  // 只有叶子节点才可以选中
+  if (node.isLeaf) {
+    formData.businessTypeId = data.businessTypeId
+    formData.businessTypeName = data.businessTypeName
+    formData.businessTypeNo = data.businessTypeNo
+    showBusinessTypeTree.value = false
+  } else {
+    // 非叶子节点：展开/折叠
     node.expanded ? node.collapse() : node.expand()
   }
 }
@@ -227,6 +260,11 @@ watch(
 
 onMounted(() => {
   loadMasterData()
+  document.addEventListener('click', handleClickOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
 })
 
 defineExpose({
@@ -266,5 +304,41 @@ defineExpose({
 
 .section-content {
   padding: 20px;
+}
+
+/* 业务类型树形选择器样式 */
+.business-type-tree-select {
+  position: relative;
+  width: 100%;
+}
+
+.business-type-input {
+  width: 100%;
+  cursor: pointer;
+}
+
+.business-type-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #c0c4cc;
+}
+
+.business-type-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 1000;
+  background: white;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  max-height: 300px;
+  overflow-y: auto;
+  min-width: 100%;
+  margin-top: 4px;
 }
 </style>
