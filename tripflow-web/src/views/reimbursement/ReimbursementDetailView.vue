@@ -15,7 +15,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useReimbursementStore } from '@/stores/reimbursementStore'
 import BasicInfoSection from './components/BasicInfoSection.vue'
 import TravelRecordSection from './components/TravelRecordSection.vue'
@@ -26,6 +27,7 @@ import RemarkSection from './components/RemarkSection.vue'
 import FormFooter from './components/FormFooter.vue'
 
 const route = useRoute()
+const router = useRouter()
 const store = useReimbursementStore()
 const basicInfoRef = ref()
 
@@ -41,7 +43,12 @@ async function loadPage() {
 
   const id = route.params.id as string
   if (id) {
-    await store.fetchReimbursementDetail(id)
+    try {
+      await store.fetchReimbursementDetail(id)
+    } catch {
+      ElMessage.error('报销单不存在或已被删除')
+      router.push('/reimbursement')
+    }
   }
 }
 

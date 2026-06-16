@@ -276,6 +276,12 @@ public class ReimbursementChildRecordService {
         if (record.getArrivalDate() != null) {
             item.setArrivalDate(record.getArrivalDate().format(DATE_FMT));
         }
+        if (record.getDepartureDatetime() != null) {
+            item.setDepartureDatetime(record.getDepartureDatetime().format(DATETIME_FMT));
+        }
+        if (record.getArrivalDatetime() != null) {
+            item.setArrivalDatetime(record.getArrivalDatetime().format(DATETIME_FMT));
+        }
         item.setDescription(record.getDescription());
         return item;
     }
