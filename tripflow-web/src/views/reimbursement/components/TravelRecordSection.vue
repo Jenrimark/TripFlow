@@ -125,10 +125,15 @@ function handleSave(record: Omit<TravelRecord, 'id'>) {
   modalVisible.value = false
 }
 
-function handleAutoSave(record: Omit<TravelRecord, 'id'>) {
+async function handleAutoSave(record: Omit<TravelRecord, 'id'>) {
   if (modalMode.value === 'edit' && currentRecord.value) {
     store.updateTravelRecord(currentRecord.value.id, record)
     snapshotBeforeEdit = { id: currentRecord.value.id, ...record } as TravelRecord
+    try {
+      await store.saveReimbursement()
+    } catch {
+      ElMessage.error('自动保存失败')
+    }
   }
 }
 
