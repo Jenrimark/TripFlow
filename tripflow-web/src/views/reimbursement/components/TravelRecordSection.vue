@@ -78,6 +78,32 @@ const modalMode = ref<'add' | 'edit' | 'copy'>('add')
 const currentRecord = ref<TravelRecord | null>(null)
 let snapshotBeforeEdit: TravelRecord | null = null
 
+// ── auto-save 防抖 + 串行化 ──
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+let isSaving = false
+let pendingSave: Omit<TravelRecord, 'id'> | null = null
+const AUTO_SAVE_DELAY = 500 // ms，防抖间隔
+
+async function flushAutoSave() {
+  if (isSaving) return // 上一次还没完成，等它完成后由 finally 触发
+  if (!pendingSave || modalMode.value !== 'edit' || !currentRecord.value) return
+
+  const record = pendingSave
+  pendingSave = null
+  isSaving = true
+  try {
+    store.updateTravelRecord(currentRecord.value.id, record)
+    snapshotBeforeEdit = { id: currentRecord.value.id, ...record } as TravelRecord
+    await store.saveReimbursement()
+  } catch (err: any) {
+    ElMessage.error(err?.displayMessage || '自动保存失败')
+  } finally {
+    isSaving = false
+    // 如果等待期间又产生了新的 pendingSave，继续发送
+    if (pendingSave) flushAutoSave()
+  }
+}
+
 const travelRecords = computed(() => store.currentReimbursement?.travelRecords || [])
 
 function toggleExpanded() {
@@ -125,16 +151,19 @@ function handleSave(record: Omit<TravelRecord, 'id'>) {
   modalVisible.value = false
 }
 
-async function handleAutoSave(record: Omit<TravelRecord, 'id'>) {
-  if (modalMode.value === 'edit' && currentRecord.value) {
-    store.updateTravelRecord(currentRecord.value.id, record)
-    snapshotBeforeEdit = { id: currentRecord.value.id, ...record } as TravelRecord
-    try {
-      await store.saveReimbursement()
-    } catch (err: any) {
-      ElMessage.error(err?.displayMessage || '自动保存失败')
-    }
-  }
+function handleAutoSave(record: Omit<TravelRecord, 'id'>) {
+  if (modalMode.value !== 'edit' || !currentRecord.value) return
+
+  // 防抖：短时间内多次变更合并为一次保存
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+
+  // 始终持有最新的待保存数据（串行化：如果上一次还在保存中，这次的数据会排队）
+  pendingSave = record
+
+  autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = null
+    flushAutoSave()
+  }, AUTO_SAVE_DELAY)
 }
 
 function handleRevert() {
@@ -146,7 +175,12 @@ function handleRevert() {
 }
 
 watch(modalVisible, (visible) => {
-  if (!visible) snapshotBeforeEdit = null
+  if (!visible) {
+    snapshotBeforeEdit = null
+    // 关闭弹窗时清除未执行的 auto-save
+    if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null }
+    pendingSave = null
+  }
 })
 </script>
 

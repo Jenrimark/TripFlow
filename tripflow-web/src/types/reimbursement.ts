@@ -83,9 +83,8 @@ export interface CostAllocation {
   projectId: string // 项目ID
   projectName: string // 项目名称
   projectNo: string // 项目编号
-  realRatio: number // 实际比例（精确分数存储，如 1/3 = 0.333333...）
-  ratio: number // 分摊比例 0-1（显示用，四舍五入到两位小数）
-  amount: number // 分摊金额（按 realRatio 计算）
+  ratio: number // 分摊比例（分数，如 0.3333，前端展示时 ×100 转百分数）
+  amount: number // 分摊金额（按 ratio 计算）
 }
 
 // 报销单完整信息

@@ -71,12 +71,6 @@
             </el-input>
           </template>
         </el-table-column>
-        <!-- 实际比例列：隐藏但保留，逻辑不变 -->
-        <el-table-column v-if="false" label="实际比例" width="120" align="center">
-          <template #default="{ row }">
-            {{ formatRealRatio(row.realRatio) }}
-          </template>
-        </el-table-column>
         <el-table-column label="金额" width="180" align="right">
           <template #default="{ row }">
             <span class="amount">{{ formatAmount(row.amount) }}</span>
@@ -119,40 +113,22 @@ function toggleExpanded() {
 
 const allocations = computed(() => {
   if (!store.currentReimbursement) return []
-  return store.currentReimbursement.costAllocations.map((a) => ({
+  const items = store.currentReimbursement.costAllocations
+  // 第2行起：ratio × 100 保留两位小数
+  const result = items.map((a) => ({
     ...a,
     ratioDisplay: (a.ratio * 100).toFixed(2),
   }))
-})
-
-/**
- * 将小数比例转成分数显示
- * 0.3333... → "1/3"，0.25 → "1/4"，无精确分数则显示小数
- */
-function formatRealRatio(r: number): string {
-  if (r === 0) return '0'
-  if (r === 1) return '1'
-  // 最大分母 100，找最接近的分数
-  let bestNum = 1, bestDen = 1
-  let bestDiff = Math.abs(r - 1)
-  for (let den = 2; den <= 100; den++) {
-    const num = Math.round(r * den)
-    const diff = Math.abs(r - num / den)
-    if (diff < bestDiff) {
-      bestDiff = diff
-      bestNum = num
-      bestDen = den
-      if (diff < 1e-9) break
+  // 第1行：强制 100% - 其他行百分数之和，保证显示总和恰好 100%
+  if (result.length > 0) {
+    let othersPercentSum = 0
+    for (let i = 1; i < result.length; i++) {
+      othersPercentSum += parseFloat(result[i]!.ratioDisplay)
     }
+    result[0] = { ...result[0]!, ratioDisplay: (100 - othersPercentSum).toFixed(2) }
   }
-  // 约分
-  const g = gcd(bestNum, bestDen)
-  return `${bestNum / g}/${bestDen / g}`
-}
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b)
-}
+  return result
+})
 
 /** 同步 store 中的真实比例到 DOM，解决 el-input 不随 computed 更新的问题 */
 function syncAllRatioDisplays() {
@@ -161,9 +137,10 @@ function syncAllRatioDisplays() {
   const inputs = document.querySelectorAll(
     '.cost-allocation-section .el-table__body .el-input__inner',
   ) as NodeListOf<HTMLInputElement>
-  storeAllocs.forEach((a, i) => {
-    if (inputs[i]) {
-      inputs[i].value = (a.ratio * 100).toFixed(2)
+  // 用 allocations computed 中的 ratioDisplay，确保第1行显示补差值
+  storeAllocs.forEach((_, i) => {
+    if (inputs[i] && allocations.value[i]) {
+      inputs[i].value = allocations.value[i]!.ratioDisplay
     }
   })
 }

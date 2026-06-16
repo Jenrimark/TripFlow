@@ -249,7 +249,6 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
           projectId: '',
           projectName: '',
           projectNo: '',
-          realRatio: 1,
           ratio: 1,
           amount: 0,
         },
@@ -395,7 +394,7 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     }
     // 补助金额变更后，同步重算所有分摊行的金额
     if (currentReimbursement.value.costAllocations.length > 0) {
-      recalcFromRealRatios()
+      recalcFromRatios()
     }
   }
 
@@ -409,38 +408,29 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
       projectId: '',
       projectName: '',
       projectNo: '',
-      realRatio: 0,
       ratio: 0,
       amount: 0,
     })
   }
 
-  /** 根据 realRatio 重新计算所有行的 ratio（显示用）和 amount */
-  function recalcFromRealRatios() {
+  /** 根据 ratio 重新计算所有行的 ratio（显示用）和 amount */
+  function recalcFromRatios() {
     if (!currentReimbursement.value) return
     const allocations = currentReimbursement.value.costAllocations
     const total = totalAllowanceAmount.value
 
-    // 第一行 realRatio = 1 - sum(其余行realRatio)
+    // 第一行 ratio = 1 - sum(其余行ratio)
     let othersSum = 0
     for (let i = 1; i < allocations.length; i++) {
-      othersSum += allocations[i]!.realRatio
+      othersSum += allocations[i]!.ratio
     }
-    // 四舍五入到8位小数，消除 1 - 0.8 = 0.19999999999999996 这类浮点误差
-    allocations[0]!.realRatio = Math.round((1 - othersSum) * 1e8) / 1e8
+    // 四舍五入到8位小数，消除浮点误差
+    allocations[0]!.ratio = Math.round((1 - othersSum) * 1e8) / 1e8
 
-    // ratio（显示）：第2行起四舍五入，第1行 = 100 - sum(其余ratio)
-    let othersRatioDisplaySum = 0
-    for (let i = 1; i < allocations.length; i++) {
-      allocations[i]!.ratio = Math.floor(allocations[i]!.realRatio * 10000) / 10000 // 两位小数截断
-      othersRatioDisplaySum += allocations[i]!.ratio
-    }
-    allocations[0]!.ratio = Math.round((1 - othersRatioDisplaySum) * 10000) / 10000
-
-    // 金额按 realRatio 计算，最后一分钱差额给第一行
+    // 金额按 ratio 计算，最后一分钱差额给第一行
     let othersAmountSum = 0
     for (let i = 1; i < allocations.length; i++) {
-      allocations[i]!.amount = Math.floor(total * allocations[i]!.realRatio * 100) / 100
+      allocations[i]!.amount = Math.floor(total * allocations[i]!.ratio * 100) / 100
       othersAmountSum += allocations[i]!.amount
     }
     allocations[0]!.amount = Math.round((total - othersAmountSum) * 100) / 100
@@ -456,23 +446,21 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
       ...allocation,
     }
 
-    // 用户改了 ratio（百分比输入框），转成 realRatio 再重算
+    // 用户改了 ratio（百分比输入框），直接重算
     if (index > 0 && allocation.ratio !== undefined) {
-      const realRatio = allocation.ratio // ratio 已经是 0-1，直接作为 realRatio
+      const ratio = allocation.ratio
       const allocations = currentReimbursement.value.costAllocations
-      allocations[index]!.realRatio = realRatio
 
       let othersSum = 0
       for (let i = 1; i < allocations.length; i++) {
-        if (i !== index) othersSum += allocations[i]!.realRatio
+        if (i !== index) othersSum += allocations[i]!.ratio
       }
-      if (othersSum + realRatio > 1) {
-        allocations[index]!.realRatio = 0
+      if (othersSum + ratio > 1) {
         allocations[index]!.ratio = 0
         allocations[index]!.amount = 0
         ElMessage.error('比例之和不能超过100%')
       } else {
-        recalcFromRealRatios()
+        recalcFromRatios()
       }
     }
   }
@@ -485,7 +473,7 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     currentReimbursement.value.costAllocations =
       currentReimbursement.value.costAllocations.filter((a) => a.id !== id)
 
-    recalcFromRealRatios()
+    recalcFromRatios()
   }
 
   function evenAllocation() {
@@ -497,10 +485,10 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     const evenRatio = 1 / n
 
     allocations.forEach((a) => {
-      a.realRatio = evenRatio
+      a.ratio = evenRatio
     })
 
-    recalcFromRealRatios()
+    recalcFromRatios()
   }
 
   function validateBeforeSubmit(): string[] {
