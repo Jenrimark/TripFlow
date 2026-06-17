@@ -115,6 +115,18 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
       throw new Error('报销单不存在')
     }
     syncTotalsToCurrent()
+    // 确保保存前分摊金额与当前补助总额一致，避免旧值直接提交到后端
+    if (currentReimbursement.value.costAllocations.length > 0) {
+      recalcFromRatios()
+      const total = totalAllowanceAmount.value
+      currentReimbursement.value.costAllocations.forEach((a, i) => {
+        if (i === 0) {
+          a.amount = Math.round((total - currentReimbursement.value!.costAllocations.slice(1).reduce((s, x) => s + (x.amount ?? 0), 0)) * 100) / 100
+        } else {
+          a.amount = Math.floor(total * a.ratio * 100) / 100
+        }
+      })
+    }
     const snapshot = JSON.parse(JSON.stringify(currentReimbursement.value)) as Reimbursement
     // 清理空字符串的可选字段
     for (const record of snapshot.travelRecords) {
@@ -293,6 +305,17 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
       0,
     )
 
+    const totalAllowanceAmount = calendar.reduce(
+      (sum, c) => {
+        let dayTotal = 0
+        if (c.mealSelected) dayTotal += c.mealAmount
+        if (c.transportSelected) dayTotal += c.transportAmount
+        if (c.communicationSelected) dayTotal += c.communicationAmount
+        return sum + dayTotal
+      },
+      0,
+    )
+
     const newAllowance: AllowanceInfo = {
       id: `allowance_${Date.now()}`,
       travelRecordId: newRecord.id,
@@ -305,9 +328,14 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
       arrivalCity: record.arrivalCityName,
       calendar,
       totalApplyAmount,
-      totalAllowanceAmount: 0,
+      totalAllowanceAmount,
     }
     currentReimbursement.value.allowances.push(newAllowance)
+
+    // 补助金额变更后，同步重算所有分摊行的金额
+    if (currentReimbursement.value.costAllocations.length > 0) {
+      recalcFromRatios()
+    }
   }
 
   function updateTravelRecord(id: string, record: Partial<TravelRecord>) {
@@ -358,8 +386,23 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
             },
             0,
           )
+          allowance.totalAllowanceAmount = allowance.calendar.reduce(
+            (sum, c) => {
+              let dayTotal = 0
+              if (c.mealSelected) dayTotal += c.mealAmount
+              if (c.transportSelected) dayTotal += c.transportAmount
+              if (c.communicationSelected) dayTotal += c.communicationAmount
+              return sum + dayTotal
+            },
+            0,
+          )
         }
       }
+    }
+
+    // 补助金额变更后，同步重算所有分摊行的金额
+    if (currentReimbursement.value.costAllocations.length > 0) {
+      recalcFromRatios()
     }
   }
 
@@ -370,6 +413,11 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     currentReimbursement.value.allowances = currentReimbursement.value.allowances.filter(
       (a) => a.travelRecordId !== id,
     )
+
+    // 补助金额变更后，同步重算所有分摊行的金额
+    if (currentReimbursement.value.costAllocations.length > 0) {
+      recalcFromRatios()
+    }
   }
 
   function updateAllowanceCalendar(allowanceId: string, calendar: AllowanceCalendarItem[]) {
@@ -411,6 +459,10 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
       ratio: 0,
       amount: 0,
     })
+    // 新增空行后重算，确保首行金额随补助总额更新
+    if (currentReimbursement.value.costAllocations.length > 1) {
+      recalcFromRatios()
+    }
   }
 
   /** 根据 ratio 重新计算所有行的 ratio（显示用）和 amount */
@@ -525,7 +577,6 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     if (allowances.length === 0) errors.push('请至少添加一条补助信息')
     if (costAllocations.length === 0) errors.push('请至少添加一条分摊信息')
 
-    if (totalAllocationRatio.value !== 1) errors.push('分摊比例合计必须为100%')
     if (Math.abs(totalAllocationAmount.value - totalAllowanceAmount.value) > 0.01) {
       errors.push('分摊金额合计必须等于补助总金额')
     }

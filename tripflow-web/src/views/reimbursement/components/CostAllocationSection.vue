@@ -158,7 +158,7 @@ function getSummary({ columns, data }: { columns: TableColumnCtx<CostAllocation>
   return columns.map((col, index) => {
     if (index === 1) return '总计'
     if (index === 3) return '100%'
-    if (index === 4) return `CNY ${totalAmount.toFixed(2)}`
+    if (index === 4) return `CNY ${store.totalAllowanceAmount.toFixed(2)}`
     return ''
   })
 }

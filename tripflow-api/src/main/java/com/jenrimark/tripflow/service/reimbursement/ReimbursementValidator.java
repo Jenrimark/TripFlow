@@ -261,14 +261,6 @@ public class ReimbursementValidator {
             }
         }
 
-        double ratioSum = costAllocations.stream()
-                .mapToDouble(a -> a.getRatio() != null ? a.getRatio() : 0D)
-                .sum();
-        if (Math.abs(ratioSum - 1.0) > 0.0001) {
-            errors.add("分摊比例合计必须为100%");
-            return;
-        }
-
         double totalAllowance = totalAllowanceAmount != null ? totalAllowanceAmount : 0D;
         double allocationSum = costAllocations.stream()
                 .mapToDouble(a -> a.getAmount() != null ? a.getAmount() : 0D)
