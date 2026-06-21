@@ -60,7 +60,7 @@ tripflow-api/build/
 
 # --- tripflow-web (Node / Vite) ---
 node_modules
-docs/
+#docs/
 dist
 dist-ssr
 coverage
@@ -73,6 +73,3 @@ tripflow-web/cypress/videos/
 tripflow-web/cypress/screenshots/
 
 __screenshots__/
-
-*.timestamp-*-*.mjs
-docs/
