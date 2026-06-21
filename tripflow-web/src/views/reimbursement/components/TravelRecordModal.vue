@@ -172,7 +172,19 @@ onUnmounted(() => {
 const rules: FormRules = {
   reimburserId: [{ required: true, message: '请选择出行人', trigger: 'change' }],
   departureCityId: [{ required: true, message: '请选择出发城市', trigger: 'change' }],
-  arrivalCityId: [{ required: true, message: '请选择到达城市', trigger: 'change' }],
+  arrivalCityId: [
+    { required: true, message: '请选择到达城市', trigger: 'change' },
+    {
+      validator: (_rule: any, value: string, callback: any) => {
+        if (value && formData.departureCityId && value === formData.departureCityId) {
+          callback(new Error('出发城市不能与到达城市相同'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change',
+    },
+  ],
   dateRange: [{ required: true, message: '请选择出发到达日期', trigger: 'change' }],
   description: [{ required: true, message: '请输入行程说明', trigger: 'blur' }],
 }
@@ -199,6 +211,10 @@ function handleDepartureCityChange(value: string) {
   const city = cities.value.find((c) => c.cityNo === value)
   if (city) {
     formData.departureCityName = city.cityName
+  }
+  // 出发城市变更后重新校验到达城市（同城校验）
+  if (formRef.value) {
+    formRef.value.validateField('arrivalCityId')
   }
 }
 

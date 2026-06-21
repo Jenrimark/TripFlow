@@ -556,29 +556,111 @@ export const useReimbursementStore = defineStore('reimbursement', () => {
     if (!basicInfo.companyId) errors.push('请选择费用归属公司')
     if (!basicInfo.businessTypeId) errors.push('请选择业务类型')
 
-    if (travelRecords.length === 0) errors.push('请至少添加一条补录行程')
+    // —— 补录行程校验（与后端 ReimbursementValidator.validateTravelRecords 对齐）——
+    if (travelRecords.length === 0) {
+      errors.push('请至少添加一条补录行程')
+    } else {
+      const today = new Date().toISOString().slice(0, 10)
+      const seenRanges: Array<{ reimburserId: string; departure: string; arrival: string }> = []
 
-    // 校验所有行程是否有同一人员日期重叠
-    for (let i = 0; i < travelRecords.length; i++) {
-      for (let j = i + 1; j < travelRecords.length; j++) {
-        if (travelRecords[i]!.reimburserId === travelRecords[j]!.reimburserId) {
-          const overlap = checkTravelRecordOverlap(
-            [travelRecords[i]!],
-            travelRecords[j]!,
-          )
-          if (overlap) {
-            errors.push(`行程记录存在重复：${travelRecords[j]!.reimburserName} 在 ${overlap.departureDate} ~ ${overlap.arrivalDate} 已有行程`)
-            break
-          }
+      for (const record of travelRecords) {
+        // 人员信息完整性
+        if (!record.reimburserId || !record.reimburserName || !record.reimburserNo) {
+          errors.push('请选择完整的出行人信息')
+          break
         }
+        // 城市信息完整性
+        if (!record.departureCityId || !record.departureCityName || !record.arrivalCityId || !record.arrivalCityName) {
+          errors.push('请选择完整的出发城市和到达城市')
+          break
+        }
+        // 出发城市不能与到达城市相同
+        if (record.departureCityId === record.arrivalCityId) {
+          errors.push('出发城市不能与到达城市相同')
+          break
+        }
+        // 日期必填
+        if (!record.departureDate || !record.arrivalDate) {
+          errors.push('请选择出发日期和到达日期')
+          break
+        }
+        // 行程说明必填
+        if (!record.description) {
+          errors.push('请输入行程说明')
+          break
+        }
+        // 行程说明长度
+        if (record.description.length > 500) {
+          errors.push('行程说明不能超过500个字符')
+          break
+        }
+        // 日期合法性
+        const departure = record.departureDate
+        const arrival = record.arrivalDate
+        if (arrival < departure) {
+          errors.push('到达日期不能早于出发日期')
+          break
+        }
+        if (departure > today || arrival > today) {
+          errors.push('行程日期不能晚于当前日期')
+          break
+        }
+        // 同一人日期重叠
+        const conflict = seenRanges.find(
+          (r) => r.reimburserId === record.reimburserId && r.departure <= arrival && r.arrival >= departure,
+        )
+        if (conflict) {
+          errors.push('同一出行人在所选日期范围内已存在补录行程，不可重复')
+          break
+        }
+        seenRanges.push({ reimburserId: record.reimburserId, departure, arrival })
       }
     }
 
-    if (allowances.length === 0) errors.push('请至少添加一条补助信息')
-    if (costAllocations.length === 0) errors.push('请至少添加一条分摊信息')
+    // —— 补助信息校验 ——
+    if (allowances.length === 0) {
+      errors.push('请至少添加一条补助信息')
+    }
 
-    if (Math.abs(totalAllocationAmount.value - totalAllowanceAmount.value) > 0.01) {
-      errors.push('分摊金额合计必须等于补助总金额')
+    // —— 分摊信息校验（与后端 ReimbursementValidator.validateCostAllocations 对齐）——
+    if (costAllocations.length === 0) {
+      errors.push('请至少添加一条分摊信息')
+    } else {
+      for (const allocation of costAllocations) {
+        if (!allocation.companyId || !allocation.companyName || !allocation.companyNo) {
+          errors.push('请选择完整的归属公司信息')
+          break
+        }
+        if (!allocation.projectId || !allocation.projectName || !allocation.projectNo) {
+          errors.push('请选择完整的归属项目信息')
+          break
+        }
+        if (allocation.ratio == null) {
+          errors.push('请填写分摊比例')
+          break
+        }
+        if (allocation.amount == null) {
+          errors.push('请填写分摊金额')
+          break
+        }
+        if (allocation.ratio < 0 || allocation.ratio > 1) {
+          errors.push('分摊比例必须在0到1之间')
+          break
+        }
+        if (allocation.amount < 0) {
+          errors.push('分摊金额不能小于0')
+          break
+        }
+      }
+      // 分摊金额合计必须等于补助总金额
+      if (Math.abs(totalAllocationAmount.value - totalAllowanceAmount.value) > 0.01) {
+        errors.push('分摊金额合计必须等于补助总金额')
+      }
+    }
+
+    // —— 备注长度校验 ——
+    if (currentReimbursement.value.remark && currentReimbursement.value.remark.length > 1000) {
+      errors.push('备注信息不能超过1000个字符')
     }
 
     return errors
